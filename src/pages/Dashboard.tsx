@@ -1,8 +1,11 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Layers, Plus, Trash2, BookOpen, Clock } from 'lucide-react'
-import { getAllDecks, createDeck, deleteDeck, countCardsForDeck } from '../lib/db'
+import { Layers, Plus, Trash2, BookOpen, Clock, Settings, CalendarDays } from 'lucide-react'
+import { getAllDecks, createDeck, deleteDeck, countCardsForDeck, getLocalDB } from '../lib/db'
 import type { Deck } from '../lib/types'
+import DueCalendar from '../components/DueCalendar'
+import AuthButton from '../components/AuthButton'
+import { useAuth } from '../lib/useAuth'
 
 interface DeckWithCounts extends Deck {
   total: number
@@ -14,6 +17,9 @@ export default function Dashboard() {
   const [showCreate, setShowCreate] = useState(false)
   const [newName, setNewName] = useState('')
   const [newDesc, setNewDesc] = useState('')
+  const [calendarDeckId, setCalendarDeckId] = useState<string | null>(null)
+  const { auth } = useAuth()
+  const userKey = auth?.decoded.sub ?? 'anon'
 
   const loadDecks = async () => {
     const allDecks = await getAllDecks()
@@ -26,7 +32,12 @@ export default function Dashboard() {
     setDecks(withCounts)
   }
 
-  useEffect(() => { loadDecks() }, [])
+  useEffect(() => {
+    loadDecks()
+    const changes = getLocalDB().changes({ since: 'now', live: true })
+      .on('change', () => loadDecks())
+    return () => changes.cancel()
+  }, [userKey])
 
   const handleCreate = async () => {
     if (!newName.trim()) return
@@ -52,13 +63,22 @@ export default function Dashboard() {
           </div>
           <h1 className="text-2xl text-gray-800 font-semibold">Cardflashs</h1>
         </div>
-        <button
-          onClick={() => setShowCreate(true)}
-          className="flex items-center gap-2 px-4 py-2 bg-gray-800 text-white rounded-lg hover:bg-gray-700 transition-colors cursor-pointer"
-        >
-          <Plus className="w-4 h-4" />
-          New Deck
-        </button>
+        <div className="flex items-center gap-2">
+          <AuthButton />
+          <Link
+            to="/settings"
+            className="p-2 text-gray-400 hover:text-gray-600 transition-colors"
+          >
+            <Settings className="w-5 h-5" />
+          </Link>
+          <button
+            onClick={() => setShowCreate(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-gray-800 text-white rounded-lg hover:bg-gray-700 transition-colors cursor-pointer"
+          >
+            <Plus className="w-4 h-4" />
+            New Deck
+          </button>
+        </div>
       </div>
 
       {/* Create Deck Modal */}
@@ -135,6 +155,12 @@ export default function Dashboard() {
                     </Link>
                   )}
                   <button
+                    onClick={() => setCalendarDeckId(calendarDeckId === deck._id ? null : deck._id)}
+                    className={`transition-colors cursor-pointer ${calendarDeckId === deck._id ? 'text-gray-700' : 'text-gray-400 hover:text-gray-600'}`}
+                  >
+                    <CalendarDays className="w-4 h-4" />
+                  </button>
+                  <button
                     onClick={() => handleDelete(deck._id)}
                     className="text-gray-400 hover:text-red-500 transition-colors cursor-pointer"
                   >
@@ -149,6 +175,11 @@ export default function Dashboard() {
                 <span>{deck.total} card{deck.total !== 1 ? 's' : ''}</span>
                 <span>{deck.due} due</span>
               </div>
+              {calendarDeckId === deck._id && (
+                <div className="mt-2 pt-2 border-t border-gray-200">
+                  <DueCalendar deckId={deck._id} />
+                </div>
+              )}
             </div>
           ))}
         </div>

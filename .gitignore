@@ -24,3 +24,6 @@ dist-ssr
 *.sw?
 
 .vite
+
+# Generated CouchDB JWT keys (rewritten by scripts/refresh-jwt-keys.sh).
+couchdb/jwt-keys.ini

@@ -2,6 +2,7 @@ import type { Card as FSRSCard } from 'ts-fsrs'
 
 export interface Deck {
   _id: string
+  _rev?: string
   type: 'deck'
   name: string
   description: string
@@ -15,6 +16,7 @@ export interface CardSide {
 
 export interface FlashCard {
   _id: string
+  _rev?: string
   type: 'card'
   deckId: string
   front: CardSide

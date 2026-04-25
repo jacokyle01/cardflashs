@@ -5,6 +5,7 @@ import { getDeck, getDueCardsForDeck } from '../lib/db'
 import { reviewAndSave } from '../lib/scheduler'
 import { Rating } from 'ts-fsrs'
 import type { Deck, FlashCard } from '../lib/types'
+import { useAuth } from '../lib/useAuth'
 
 const GRADE_BUTTONS = [
   { grade: Rating.Again, label: 'Again', color: 'bg-red-500 hover:bg-red-600' },
@@ -21,6 +22,8 @@ export default function StudySession() {
   const [currentIndex, setCurrentIndex] = useState(0)
   const [revealed, setRevealed] = useState(false)
   const [finished, setFinished] = useState(false)
+  const { auth } = useAuth()
+  const userKey = auth?.decoded.sub ?? 'anon'
 
   const load = async () => {
     if (!deckId) return
@@ -33,7 +36,7 @@ export default function StudySession() {
     }
   }
 
-  useEffect(() => { load() }, [deckId])
+  useEffect(() => { load() }, [deckId, userKey])
 
   const currentCard = cards[currentIndex]
 

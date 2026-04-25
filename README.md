@@ -1,6 +1,38 @@
-# React + TypeScript + Vite
+# cardflashs
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Local-first flashcards with FSRS scheduling. Decks live in IndexedDB via
+PouchDB. Sign in with Google to sync them to a CouchDB instance you control —
+each Google account gets its own private database, identified by the `sub`
+claim of the Google ID token.
+
+## Quick start
+
+```sh
+npm install
+cp .env.example .env.local   # fill in VITE_GOOGLE_CLIENT_ID
+npm run dev
+```
+
+Without a `VITE_GOOGLE_CLIENT_ID` the app still works fully offline (the
+sign-in button is disabled). Set one and stand up a CouchDB instance to
+unlock cross-device sync — see [`couchdb/README.md`](./couchdb/README.md).
+
+## How sync works
+
+- A PouchDB instance always lives in the browser's IndexedDB.
+- Signing in fetches a Google ID token (JWT). The app decodes the `sub` claim
+  to identify the user.
+- A second PouchDB instance pointing at `<COUCHDB_URL>/userdb-<hex(sub)>` is
+  opened with the JWT attached as a bearer token on every request.
+- A live `db.sync(remote)` runs in both directions until the user signs out
+  or the token expires.
+- CouchDB validates the JWT against Google's public RSA keys (RS256) and
+  uses `couch_peruser` to lazily create the user's database. The token is
+  the source of identity end-to-end.
+
+## React + TypeScript + Vite template notes
+
+This project was bootstrapped from a minimal Vite + React + TS template.
 
 Currently, two official plugins are available:
 

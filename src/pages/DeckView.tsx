@@ -1,10 +1,29 @@
 import { useEffect, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import { ArrowLeft, Plus, Trash2, Clock, CreditCard, Pencil, Check, X, BarChart3 } from 'lucide-react'
+import { ArrowLeft, Plus, Trash2, Clock, CreditCard, Pencil, Check, X, BarChart3, Upload } from 'lucide-react'
 import { State } from 'ts-fsrs'
-import { getDeck, getCardsForDeck, createCard, deleteCard, updateCard } from '../lib/db'
+
+function formatDueIn(due: Date | string): string {
+  const now = Date.now()
+  const dueMs = new Date(due).getTime()
+  if (dueMs <= now) return 'Now'
+  const diffMs = dueMs - now
+  const minutes = Math.floor(diffMs / 60_000)
+  if (minutes < 60) return `in ${minutes}m`
+  const hours = Math.floor(minutes / 60)
+  if (hours < 24) return `in ${hours}h`
+  const days = Math.floor(hours / 24)
+  if (days < 7) return `in ${days}d`
+  if (days < 30) return `in ${Math.floor(days / 7)}w`
+  const months = Math.floor(days / 30)
+  if (months < 12) return `in ${months}mo`
+  const years = Math.floor(months / 12)
+  return `in ${years}y`
+}
+import { getDeck, getCardsForDeck, createCard, deleteCard, updateCard, getLocalDB } from '../lib/db'
 import { parseCardContent } from '../lib/db'
 import type { Deck, FlashCard } from '../lib/types'
+import { useAuth } from '../lib/useAuth'
 
 export default function DeckView() {
   const { deckId } = useParams<{ deckId: string }>()
@@ -15,6 +34,11 @@ export default function DeckView() {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editContent, setEditContent] = useState('')
   const [statsId, setStatsId] = useState<string | null>(null)
+  const [showBulk, setShowBulk] = useState(false)
+  const [bulkContent, setBulkContent] = useState('')
+  const [bulkImporting, setBulkImporting] = useState(false)
+  const { auth } = useAuth()
+  const userKey = auth?.decoded.sub ?? 'anon'
 
   const load = async () => {
     if (!deckId) return
@@ -23,8 +47,12 @@ export default function DeckView() {
     setCards(c)
   }
 
-  //TODO we should get all decks on page load?
-  useEffect(() => { load() }, [deckId])
+  useEffect(() => {
+    load()
+    const changes = getLocalDB().changes({ since: 'now', live: true })
+      .on('change', () => load())
+    return () => changes.cancel()
+  }, [deckId, userKey])
 
   const handleCreate = async () => {
     if (!rawContent.trim() || !deckId) return
@@ -59,6 +87,22 @@ export default function DeckView() {
     load()
   }
 
+  const handleBulkImport = async () => {
+    if (!bulkContent.trim() || !deckId) return
+    setBulkImporting(true)
+    const lines = bulkContent.split('\n').filter(l => l.trim())
+    for (const line of lines) {
+      const parts = line.split(',').map(s => s.trim()).filter(Boolean)
+      if (parts.length < 2) continue
+      const raw = parts[0] + '\n---\n' + parts.slice(1).join('\n---\n')
+      await createCard(deckId, raw)
+    }
+    setBulkContent('')
+    setShowBulk(false)
+    setBulkImporting(false)
+    load()
+  }
+
   const dueCount = cards.filter(c => new Date(c.fsrs.due) <= new Date()).length
 
   if (!deck) return null
@@ -81,6 +125,13 @@ export default function DeckView() {
               Study ({dueCount})
             </Link>
           )}
+          <button
+            onClick={() => setShowBulk(true)}
+            className="flex items-center gap-2 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors cursor-pointer"
+          >
+            <Upload className="w-4 h-4" />
+            Bulk Import
+          </button>
           <button
             onClick={() => setShowCreate(true)}
             className="flex items-center gap-2 px-4 py-2 bg-gray-800 text-white rounded-lg hover:bg-gray-700 transition-colors cursor-pointer"
@@ -123,6 +174,44 @@ export default function DeckView() {
                 className="px-4 py-2 bg-gray-800 text-white rounded-lg hover:bg-gray-700 cursor-pointer"
               >
                 Add
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Bulk Import Modal */}
+      {showBulk && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg border border-gray-300 p-6 w-full max-w-lg mx-4">
+            <h2 className="text-lg text-gray-800 font-semibold mb-2">Bulk Import</h2>
+            <p className="text-sm text-gray-500 mb-4">
+              One card per line: <code className="bg-gray-100 px-1.5 py-0.5 rounded text-xs">front, back, back2, ...</code>
+            </p>
+            <textarea
+              autoFocus
+              placeholder={"hola, hello\nbonjour, hello, hi\ngracias, thank you"}
+              value={bulkContent}
+              onChange={(e) => setBulkContent(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg mb-2 outline-none focus:border-gray-400 resize-none font-mono text-sm"
+              rows={10}
+            />
+            <p className="text-xs text-gray-400 mb-4">
+              {bulkContent.split('\n').filter(l => l.trim() && l.includes(',')).length} valid card{bulkContent.split('\n').filter(l => l.trim() && l.includes(',')).length !== 1 ? 's' : ''} detected
+            </p>
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => { setShowBulk(false); setBulkContent('') }}
+                className="px-4 py-2 text-gray-600 hover:text-gray-800 cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleBulkImport}
+                disabled={bulkImporting}
+                className="px-4 py-2 bg-gray-800 text-white rounded-lg hover:bg-gray-700 cursor-pointer disabled:opacity-50"
+              >
+                {bulkImporting ? 'Importing...' : 'Import'}
               </button>
             </div>
           </div>
@@ -208,9 +297,7 @@ export default function DeckView() {
                     <div>
                       <p className="text-gray-400 text-xs uppercase tracking-wide">Next Due</p>
                       <p className="text-gray-700 font-medium">
-                        {new Date(card.fsrs.due) <= new Date()
-                          ? 'Now'
-                          : new Date(card.fsrs.due).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
+                        {formatDueIn(card.fsrs.due)}
                       </p>
                     </div>
                     <div>

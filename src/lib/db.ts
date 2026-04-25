@@ -1,25 +1,62 @@
-import { openDB, type IDBPDatabase } from 'idb'
+import PouchDB from './pouch'
 import type { Deck, FlashCard } from './types'
-import { createEmptyCard } from 'ts-fsrs'
+import { createEmptyCard, generatorParameters, type FSRSParameters } from 'ts-fsrs'
 
-interface CardflashsDB {
-  decks: { key: string; value: Deck }
-  cards: { key: string; value: FlashCard; indexes: { 'by-deck': string } }
+// Loose generic so Deck / FlashCard / SettingsDoc — none of which carry an
+// index signature — can be passed straight to db.put without casts.
+type AnyPouch = PouchDB.Database
+
+interface SettingsDoc {
+  _id: 'settings:fsrs_params'
+  _rev?: string
+  type: 'settings'
+  value: FSRSParameters
 }
 
-let dbPromise: Promise<IDBPDatabase<CardflashsDB>>
+// One local DB regardless of auth state. Signing in attaches remote sync on
+// top of this DB; signing out detaches it. Cards created while signed out
+// stay visible when you sign in, and replicate up to the user's CouchDB DB
+// the first time sync attaches.
+let localDB: AnyPouch | null = null
 
-function getDB() {
-  if (!dbPromise) {
-    dbPromise = openDB<CardflashsDB>('cardflashs', 1, {
-      upgrade(db) {
-        db.createObjectStore('decks', { keyPath: '_id' })
-        const cardStore = db.createObjectStore('cards', { keyPath: '_id' })
-        cardStore.createIndex('by-deck', 'deckId')
-      },
-    })
+export function getLocalDB(): AnyPouch {
+  if (!localDB) {
+    localDB = new PouchDB('cardflashs')
+    void localDB.createIndex({ index: { fields: ['type', 'deckId'] } }).catch(() => {})
   }
-  return dbPromise
+  return localDB
+}
+
+// --- Settings operations ---
+
+export async function getFSRSParams(): Promise<FSRSParameters> {
+  const db = getLocalDB()
+  try {
+    const doc = await db.get<SettingsDoc>('settings:fsrs_params')
+    return doc.value
+  } catch (err) {
+    if ((err as { status?: number }).status === 404) return generatorParameters({})
+    throw err
+  }
+}
+
+export async function saveFSRSParams(params: Partial<FSRSParameters>): Promise<FSRSParameters> {
+  const full = generatorParameters(params)
+  const db = getLocalDB()
+  let rev: string | undefined
+  try {
+    const existing = await db.get<SettingsDoc>('settings:fsrs_params')
+    rev = existing._rev
+  } catch (err) {
+    if ((err as { status?: number }).status !== 404) throw err
+  }
+  await db.put({
+    _id: 'settings:fsrs_params',
+    _rev: rev,
+    type: 'settings',
+    value: full,
+  })
+  return full
 }
 
 // --- Deck operations ---
@@ -34,37 +71,46 @@ export async function createDeck(name: string, description = ''): Promise<Deck> 
     createdAt: now,
     updatedAt: now,
   }
-  const db = await getDB()
-  await db.put('decks', deck)
-  return deck
+  const db = getLocalDB()
+  const res = await db.put(deck)
+  return { ...deck, _rev: res.rev }
 }
 
 export async function getAllDecks(): Promise<Deck[]> {
-  const db = await getDB()
-  return db.getAll('decks')
+  const db = getLocalDB()
+  const res = await db.find({
+    selector: { type: 'deck' },
+  })
+  return res.docs as unknown as Deck[]
 }
 
 export async function getDeck(id: string): Promise<Deck> {
-  const db = await getDB()
-  const deck = await db.get('decks', id)
-  if (!deck) throw new Error(`Deck not found: ${id}`)
-  return deck
+  const db = getLocalDB()
+  try {
+    const doc = await db.get<Deck>(id)
+    return doc as unknown as Deck
+  } catch {
+    throw new Error(`Deck not found: ${id}`)
+  }
 }
 
 export async function updateDeck(deck: Deck): Promise<Deck> {
   const updated = { ...deck, updatedAt: new Date().toISOString() }
-  const db = await getDB()
-  await db.put('decks', updated)
-  return updated
+  const db = getLocalDB()
+  const res = await db.put(updated)
+  return { ...updated, _rev: res.rev }
 }
 
 export async function deleteDeck(id: string): Promise<void> {
-  const db = await getDB()
-  await db.delete('decks', id)
+  const db = getLocalDB()
+  const deck = await db.get<Deck>(id)
+  await db.remove(deck as unknown as PouchDB.Core.RemoveDocument)
   const cards = await getCardsForDeck(id)
-  const tx = db.transaction('cards', 'readwrite')
-  await Promise.all(cards.map(c => tx.store.delete(c._id)))
-  await tx.done
+  await Promise.all(
+    cards.map(c =>
+      db.remove({ _id: c._id, _rev: c._rev! } as PouchDB.Core.RemoveDocument)
+    )
+  )
 }
 
 // --- Card operations ---
@@ -90,33 +136,40 @@ export async function createCard(deckId: string, raw: string): Promise<FlashCard
     createdAt: now,
     updatedAt: now,
   }
-  const db = await getDB()
-  await db.put('cards', card)
-  return card
+  const db = getLocalDB()
+  const res = await db.put(card)
+  return { ...card, _rev: res.rev }
 }
 
 export async function getCardsForDeck(deckId: string): Promise<FlashCard[]> {
-  const db = await getDB()
-  return db.getAllFromIndex('cards', 'by-deck', deckId)
+  const db = getLocalDB()
+  const res = await db.find({
+    selector: { type: 'card', deckId },
+  })
+  return res.docs as unknown as FlashCard[]
 }
 
 export async function updateCard(card: FlashCard): Promise<FlashCard> {
   const updated = { ...card, updatedAt: new Date().toISOString() }
-  const db = await getDB()
-  await db.put('cards', updated)
-  return updated
+  const db = getLocalDB()
+  const res = await db.put(updated)
+  return { ...updated, _rev: res.rev }
 }
 
 export async function deleteCard(id: string): Promise<void> {
-  const db = await getDB()
-  await db.delete('cards', id)
+  const db = getLocalDB()
+  const card = await db.get<FlashCard>(id)
+  await db.remove(card as unknown as PouchDB.Core.RemoveDocument)
 }
 
 export async function getCard(id: string): Promise<FlashCard> {
-  const db = await getDB()
-  const card = await db.get('cards', id)
-  if (!card) throw new Error(`Card not found: ${id}`)
-  return card
+  const db = getLocalDB()
+  try {
+    const doc = await db.get<FlashCard>(id)
+    return doc as unknown as FlashCard
+  } catch {
+    throw new Error(`Card not found: ${id}`)
+  }
 }
 
 export async function getDueCardsForDeck(deckId: string): Promise<FlashCard[]> {

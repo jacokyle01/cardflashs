@@ -1,10 +1,16 @@
-import { fsrs, type Grade, type Card as FSRSCard } from 'ts-fsrs'
+import { fsrs, type Grade, type Card as FSRSCard, type FSRS } from 'ts-fsrs'
 import type { FlashCard } from './types'
-import { updateCard } from './db'
+import { updateCard, getFSRSParams } from './db'
 
-const f = fsrs({})
+let cachedFSRS: FSRS | null = null
 
-export function reviewCard(card: FlashCard, grade: Grade): { updatedCard: FlashCard } {
+export async function getScheduler(): Promise<FSRS> {
+  const params = await getFSRSParams()
+  cachedFSRS = fsrs(params)
+  return cachedFSRS
+}
+
+export function reviewCard(f: FSRS, card: FlashCard, grade: Grade): { updatedCard: FlashCard } {
   const now = new Date()
   const result = f.next(card.fsrs as FSRSCard, now, grade)
   const updatedCard: FlashCard = {
@@ -16,7 +22,12 @@ export function reviewCard(card: FlashCard, grade: Grade): { updatedCard: FlashC
 }
 
 export async function reviewAndSave(card: FlashCard, grade: Grade): Promise<FlashCard> {
-  const { updatedCard } = reviewCard(card, grade)
+  const f = await getScheduler()
+  const { updatedCard } = reviewCard(f, card, grade)
   await updateCard(updatedCard)
   return updatedCard
+}
+
+export function clearSchedulerCache() {
+  cachedFSRS = null
 }
