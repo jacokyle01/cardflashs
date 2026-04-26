@@ -1,6 +1,6 @@
 # CouchDB setup for cardflashs
 
-Cardflashs is a local-first PouchDB app. Decks always live in IndexedDB.
+cardflashs is a local-first PouchDB app. Decks always live in IndexedDB.
 Signing in with Google attaches a continuous, bidirectional sync between
 that local store and a per-user database on CouchDB.
 
