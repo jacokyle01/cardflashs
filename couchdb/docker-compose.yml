@@ -1,31 +1,32 @@
 # Local-dev CouchDB for cardflashs.
 #
 # Brings up CouchDB 3.4 with:
-#   - JWT auth (RS256, keys loaded from couchdb/jwt-keys.ini)
-#   - couch_peruser (auto-creates userdb-<hex(sub)> for each Google user)
+#   - admin Basic auth (admin / admin) defined directly in local.ini
 #   - CORS for the Vite dev server
 #
+# JWT validation is intentionally disabled in this setup. Identity comes
+# from Google sign-in client-side; the browser uses the admin credentials
+# above to talk to CouchDB. Dev only.
+#
+# We bypass the official `/docker-entrypoint.sh` because its "is admin already
+# set?" heuristic exits silently (matching a commented example in default.ini)
+# and never writes the admin credentials. Since [admins] lives in our own
+# local.ini, the entrypoint's setup work isn't needed.
+#
 # Usage:
-#   1. Run scripts/refresh-jwt-keys.sh to fetch Google's current public keys
-#      into couchdb/jwt-keys.ini.
-#   2. docker compose -f couchdb/docker-compose.yml up -d
-#   3. On first boot only, hit http://localhost:5984/_cluster_setup or just let
-#      single-node mode finalize itself by visiting http://localhost:5984/_utils
+#   docker compose -f couchdb/docker-compose.yml up -d
+#   open http://localhost:5984/_utils    (Fauxton UI; admin / admin)
 
 services:
   couchdb:
     image: couchdb:3.4
-    container_name: cardflashs-couchdb
-    restart: unless-stopped
+    user: "5984:5984"           # the `couchdb` user/group baked into the image
+    entrypoint: ["tini", "--", "/opt/couchdb/bin/couchdb"]
     ports:
       - "5984:5984"
-    environment:
-      COUCHDB_USER: admin
-      COUCHDB_PASSWORD: admin
     volumes:
       - couchdb-data:/opt/couchdb/data
       - ./local.ini:/opt/couchdb/etc/local.d/10-cardflashs.ini:ro
-      - ./jwt-keys.ini:/opt/couchdb/etc/local.d/20-jwt-keys.ini:ro
 
 volumes:
   couchdb-data:

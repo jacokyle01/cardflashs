@@ -13,9 +13,16 @@ export interface SyncEvent {
 
 const COUCHDB_URL: string = (import.meta.env.VITE_COUCHDB_URL as string | undefined) ?? 'http://localhost:5984'
 
+// Dev-only credentials for talking to CouchDB. We're skipping JWT validation
+// for now: CouchDB authenticates the request via Basic auth, and we use
+// Google's `sub` claim purely to namespace each user's remote database. Do
+// not ship admin credentials baked into a real frontend — see README for the
+// path to JWT auth in production.
+const COUCHDB_USER: string = (import.meta.env.VITE_COUCHDB_USERNAME as string | undefined) ?? 'admin'
+const COUCHDB_PASS: string = (import.meta.env.VITE_COUCHDB_PASSWORD as string | undefined) ?? 'admin'
+
 let activeSync: PouchDB.Replication.Sync<Record<string, unknown>> | null = null
 let activeRemote: AnyPouch | null = null
-let currentToken: string | null = null
 let currentStatus: SyncEvent = { status: 'idle' }
 const listeners = new Set<(e: SyncEvent) => void>()
 
@@ -33,9 +40,9 @@ export function subscribeSyncStatus(cb: (e: SyncEvent) => void): () => void {
   return () => listeners.delete(cb)
 }
 
-// CouchDB user names from JWT default to the `sub` claim. couch_peruser then
-// stores user data in `userdb-<hex(name)>`. We compute that here so PouchDB
-// targets the correct remote DB without requiring a server-side mapping.
+// We still partition each user's data into `userdb-<hex(sub)>`, matching the
+// couch_peruser layout. With JWT off, we just compute the name client-side
+// and create the DB on demand using admin credentials.
 function hexEncode(s: string): string {
   let out = ''
   for (let i = 0; i < s.length; i++) {
@@ -50,40 +57,35 @@ function hexEncode(s: string): string {
   return out
 }
 
-function buildRemote(sub: string, getToken: () => string | null): AnyPouch {
-  const dbName = `userdb-${hexEncode(sub)}`
-  const url = `${COUCHDB_URL.replace(/\/$/, '')}/${dbName}`
+function userDbName(sub: string): string {
+  return `userdb-${hexEncode(sub)}`
+}
+
+function buildRemote(sub: string): AnyPouch {
+  const url = `${COUCHDB_URL.replace(/\/$/, '')}/${userDbName(sub)}`
   return new PouchDB(url, {
-    skip_setup: true,
-    fetch: (urlIn, opts) => {
-      const token = getToken()
-      const headers = new Headers(opts?.headers as HeadersInit | undefined)
-      if (token) headers.set('Authorization', `Bearer ${token}`)
-      return PouchDB.fetch(urlIn, { ...opts, headers })
-    },
+    auth: { username: COUCHDB_USER, password: COUCHDB_PASS },
   })
 }
 
-export async function startSync(sub: string, token: string): Promise<void> {
+export async function startSync(sub: string, _token: string): Promise<void> {
   await stopSync()
-  currentToken = token
   emit({ status: 'connecting' })
 
   const local = getLocalDB()
-  const remote = buildRemote(sub, () => currentToken)
+  const remote = buildRemote(sub)
   activeRemote = remote
 
-  // Probe the remote so couch_peruser materializes the userdb on first contact.
-  // 401 means our token is bad; bubble up to UI.
+  // Touch the remote to surface auth/reachability problems early.
+  // PouchDB will create the DB on first sync if it's missing, so a 404 is fine.
   try {
     await remote.info()
   } catch (err) {
     const status = (err as { status?: number }).status
     if (status === 401 || status === 403) {
-      emit({ status: 'error', message: 'Authentication rejected by CouchDB' })
+      emit({ status: 'error', message: 'CouchDB rejected credentials' })
       return
     }
-    // 404 here is normal pre-couch_peruser materialization; sync will trigger creation.
     if (status !== 404) {
       emit({ status: 'error', message: (err as Error).message })
       return
@@ -107,10 +109,9 @@ export async function stopSync(): Promise<void> {
     try { await activeRemote.close() } catch { /* ignore */ }
     activeRemote = null
   }
-  currentToken = null
   emit({ status: 'idle' })
 }
 
-export function updateSyncToken(token: string): void {
-  currentToken = token
-}
+// Kept for API compatibility with AuthContext, which calls it whenever the
+// stored ID token changes. With JWT validation disabled it's a no-op.
+export function updateSyncToken(_token: string): void {}
