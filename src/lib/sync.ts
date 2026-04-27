@@ -11,15 +11,18 @@ export interface SyncEvent {
   remoteUrl?: string
 }
 
-const COUCHDB_URL: string = (import.meta.env.VITE_COUCHDB_URL as string | undefined) ?? 'http://localhost:5984'
+// .trim() on every env read — Cloudflare Pages' env var UI silently keeps
+// trailing whitespace, which gets URL-encoded into the remote URL and breaks
+// DNS resolution (`db.cardflashs.com%20/...`).
+const COUCHDB_URL: string = ((import.meta.env.VITE_COUCHDB_URL as string | undefined) ?? 'http://localhost:5984').trim()
 
 // Dev-only credentials for talking to CouchDB. We're skipping JWT validation
 // for now: CouchDB authenticates the request via Basic auth, and we use
 // Google's `sub` claim purely to namespace each user's remote database. Do
 // not ship admin credentials baked into a real frontend — see README for the
 // path to JWT auth in production.
-const COUCHDB_USER: string = (import.meta.env.VITE_COUCHDB_USERNAME as string | undefined) ?? 'admin'
-const COUCHDB_PASS: string = (import.meta.env.VITE_COUCHDB_PASSWORD as string | undefined) ?? 'admin'
+const COUCHDB_USER: string = ((import.meta.env.VITE_COUCHDB_USERNAME as string | undefined) ?? 'admin').trim()
+const COUCHDB_PASS: string = ((import.meta.env.VITE_COUCHDB_PASSWORD as string | undefined) ?? 'admin').trim()
 
 let activeSync: PouchDB.Replication.Sync<Record<string, unknown>> | null = null
 let activeRemote: AnyPouch | null = null

@@ -78,8 +78,11 @@ export async function createDeck(name: string, description = ''): Promise<Deck> 
 
 export async function getAllDecks(): Promise<Deck[]> {
   const db = getLocalDB()
+  // PouchDB-find defaults to limit: 25; pass an explicit high limit so larger
+  // collections aren't silently truncated.
   const res = await db.find({
     selector: { type: 'deck' },
+    limit: Number.MAX_SAFE_INTEGER,
   })
   return res.docs as unknown as Deck[]
 }
@@ -145,6 +148,7 @@ export async function getCardsForDeck(deckId: string): Promise<FlashCard[]> {
   const db = getLocalDB()
   const res = await db.find({
     selector: { type: 'card', deckId },
+    limit: Number.MAX_SAFE_INTEGER,
   })
   return res.docs as unknown as FlashCard[]
 }
