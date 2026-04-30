@@ -161,6 +161,10 @@ export async function updateCard(card: FlashCard): Promise<FlashCard> {
   return { ...updated, _rev: res.rev }
 }
 
+export async function resetCard(card: FlashCard): Promise<FlashCard> {
+  return updateCard({ ...card, fsrs: createEmptyCard() })
+}
+
 export async function deleteCard(id: string): Promise<void> {
   const db = getLocalDB()
   const card = await db.get<FlashCard>(id)

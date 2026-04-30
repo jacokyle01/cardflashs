@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
-import { ArrowLeft, RotateCcw, Eye } from 'lucide-react'
-import { getDeck, getDueCardsForDeck } from '../lib/db'
+import { ArrowLeft, RotateCcw, Eye, SkipForward } from 'lucide-react'
+import { getDeck, getDueCardsForDeck, resetCard } from '../lib/db'
 import { reviewAndSave } from '../lib/scheduler'
 import { Rating } from 'ts-fsrs'
 import type { Deck, FlashCard } from '../lib/types'
@@ -40,16 +40,31 @@ export default function StudySession() {
 
   const currentCard = cards[currentIndex]
 
-  const handleGrade = useCallback(async (grade: Rating) => {
-    if (!currentCard) return
-    await reviewAndSave(currentCard, grade)
+  const advance = useCallback(() => {
     if (currentIndex + 1 >= cards.length) {
       setFinished(true)
     } else {
       setCurrentIndex(prev => prev + 1)
       setRevealed(false)
     }
-  }, [currentCard, currentIndex, cards.length])
+  }, [currentIndex, cards.length])
+
+  const handleGrade = useCallback(async (grade: Rating) => {
+    if (!currentCard) return
+    await reviewAndSave(currentCard, grade)
+    advance()
+  }, [currentCard, advance])
+
+  const handleSkip = useCallback(() => {
+    if (!currentCard) return
+    advance()
+  }, [currentCard, advance])
+
+  const handleReset = useCallback(async () => {
+    if (!currentCard) return
+    await resetCard(currentCard)
+    advance()
+  }, [currentCard, advance])
 
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
@@ -103,6 +118,26 @@ export default function StudySession() {
         </div>
       ) : currentCard ? (
         <div className="shrink-0 flex flex-col rounded-lg border border-gray-300 bg-white w-full">
+          {/* Card actions */}
+          <div className="flex justify-end gap-2 px-4 pt-3">
+            <button
+              onClick={handleSkip}
+              title="Skip this card without changing its state"
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-md cursor-pointer transition-colors"
+            >
+              <SkipForward className="w-3.5 h-3.5" />
+              Skip
+            </button>
+            <button
+              onClick={handleReset}
+              title="Reset learning state for this card"
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-md cursor-pointer transition-colors"
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+              Reset
+            </button>
+          </div>
+
           {/* Front */}
           <div className="p-8 text-center">
             <p className="text-sm text-gray-400 uppercase tracking-wide mb-3">Front</p>
