@@ -36,6 +36,7 @@ export default function DeckView() {
   const [statsId, setStatsId] = useState<string | null>(null)
   const [showBulk, setShowBulk] = useState(false)
   const [bulkContent, setBulkContent] = useState('')
+  const [bulkSeparator, setBulkSeparator] = useState(',')
   const [bulkImporting, setBulkImporting] = useState(false)
   const { auth } = useAuth()
   const userKey = auth?.decoded.sub ?? 'anon'
@@ -88,11 +89,11 @@ export default function DeckView() {
   }
 
   const handleBulkImport = async () => {
-    if (!bulkContent.trim() || !deckId) return
+    if (!bulkContent.trim() || !deckId || !bulkSeparator) return
     setBulkImporting(true)
     const lines = bulkContent.split('\n').filter(l => l.trim())
     for (const line of lines) {
-      const parts = line.split(',').map(s => s.trim()).filter(Boolean)
+      const parts = line.split(bulkSeparator).map(s => s.trim()).filter(Boolean)
       if (parts.length < 2) continue
       const raw = parts[0] + '\n---\n' + parts.slice(1).join('\n---\n')
       await createCard(deckId, raw)
@@ -102,6 +103,10 @@ export default function DeckView() {
     setBulkImporting(false)
     load()
   }
+
+  const validBulkLineCount = bulkSeparator
+    ? bulkContent.split('\n').filter(l => l.trim() && l.includes(bulkSeparator)).length
+    : 0
 
   const dueCount = cards.filter(c => new Date(c.fsrs.due) <= new Date()).length
 
@@ -186,22 +191,38 @@ export default function DeckView() {
           <div className="bg-white rounded-lg border border-gray-300 p-6 w-full max-w-lg mx-4">
             <h2 className="text-lg text-gray-800 font-semibold mb-2">Bulk Import</h2>
             <p className="text-sm text-gray-500 mb-4">
-              One card per line: <code className="bg-gray-100 px-1.5 py-0.5 rounded text-xs">front, back, back2, ...</code>
+              One card per line: <code className="bg-gray-100 px-1.5 py-0.5 rounded text-xs">front{bulkSeparator || ','} back{bulkSeparator || ','} back2{bulkSeparator || ','} ...</code>
             </p>
+            <div className="flex items-center gap-2 mb-3">
+              <label htmlFor="bulk-separator" className="text-sm text-gray-600 whitespace-nowrap">
+                Field separator
+              </label>
+              <input
+                id="bulk-separator"
+                type="text"
+                value={bulkSeparator}
+                onChange={(e) => setBulkSeparator(e.target.value)}
+                placeholder=","
+                className="w-24 px-2 py-1 border border-gray-300 rounded font-mono text-sm outline-none focus:border-gray-400"
+              />
+              <span className="text-xs text-gray-400">
+                Used to split each line into front/back fields
+              </span>
+            </div>
             <textarea
               autoFocus
-              placeholder={"hola, hello\nbonjour, hello, hi\ngracias, thank you"}
+              placeholder={`hola${bulkSeparator || ','} hello\nbonjour${bulkSeparator || ','} hello${bulkSeparator || ','} hi\ngracias${bulkSeparator || ','} thank you`}
               value={bulkContent}
               onChange={(e) => setBulkContent(e.target.value)}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg mb-2 outline-none focus:border-gray-400 resize-none font-mono text-sm"
               rows={10}
             />
             <p className="text-xs text-gray-400 mb-4">
-              {bulkContent.split('\n').filter(l => l.trim() && l.includes(',')).length} valid card{bulkContent.split('\n').filter(l => l.trim() && l.includes(',')).length !== 1 ? 's' : ''} detected
+              {validBulkLineCount} valid card{validBulkLineCount !== 1 ? 's' : ''} detected
             </p>
             <div className="flex justify-end gap-2">
               <button
-                onClick={() => { setShowBulk(false); setBulkContent('') }}
+                onClick={() => { setShowBulk(false); setBulkContent(''); setBulkSeparator(',') }}
                 className="px-4 py-2 text-gray-600 hover:text-gray-800 cursor-pointer"
               >
                 Cancel
