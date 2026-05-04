@@ -31,7 +31,7 @@ export default function Settings() {
   }
 
   const handleReset = async () => {
-    const defaults = generatorParameters({})
+    const defaults = generatorParameters({ enable_short_term: false })
     setParams(defaults)
     await saveFSRSParams(defaults)
     clearSchedulerCache()

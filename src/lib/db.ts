@@ -35,7 +35,7 @@ export async function getFSRSParams(): Promise<FSRSParameters> {
     const doc = await db.get<SettingsDoc>('settings:fsrs_params')
     return doc.value
   } catch (err) {
-    if ((err as { status?: number }).status === 404) return generatorParameters({})
+    if ((err as { status?: number }).status === 404) return generatorParameters({ enable_short_term: false })
     throw err
   }
 }
