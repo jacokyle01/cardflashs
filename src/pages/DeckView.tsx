@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import { ArrowLeft, Plus, Trash2, Clock, CreditCard, Pencil, Check, X, BarChart3, Upload } from 'lucide-react'
+import { ArrowLeft, Plus, Trash2, Clock, CreditCard, Pencil, Check, X, BarChart3, Upload, Download, FileUp } from 'lucide-react'
 import { State } from 'ts-fsrs'
 
 function formatDueIn(due: Date | string): string {
@@ -20,10 +20,15 @@ function formatDueIn(due: Date | string): string {
   const years = Math.floor(months / 12)
   return `in ${years}y`
 }
-import { getDeck, getCardsForDeck, createCard, deleteCard, updateCard, getLocalDB } from '../lib/db'
+import {
+  getDeck, getCardsForDeck, createCard, deleteCard, updateCard, getLocalDB,
+  exportDeck, parseDeckExport, importCards,
+  type DeckExport, type ImportResult,
+} from '../lib/db'
 import { parseCardContent } from '../lib/db'
 import type { Deck, FlashCard } from '../lib/types'
 import { useAuth } from '../lib/useAuth'
+import { downloadJSON, slugify, todayStamp } from '../lib/download'
 
 export default function DeckView() {
   const { deckId } = useParams<{ deckId: string }>()
@@ -38,6 +43,11 @@ export default function DeckView() {
   const [bulkContent, setBulkContent] = useState('')
   const [bulkSeparator, setBulkSeparator] = useState(',')
   const [bulkImporting, setBulkImporting] = useState(false)
+  const [importPreview, setImportPreview] = useState<DeckExport | null>(null)
+  const [importError, setImportError] = useState<string | null>(null)
+  const [importResult, setImportResult] = useState<ImportResult | null>(null)
+  const [importing, setImporting] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
   const { auth } = useAuth()
   const userKey = auth?.decoded.sub ?? 'anon'
 
@@ -88,6 +98,44 @@ export default function DeckView() {
     load()
   }
 
+  const handleExport = async () => {
+    if (!deckId) return
+    const data = await exportDeck(deckId)
+    downloadJSON(data, `${slugify(data.deck.name) || 'deck'}-${todayStamp()}.json`)
+  }
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    // Cleared before the await so picking the same file twice still fires change.
+    e.target.value = ''
+    if (!file) return
+    setImportResult(null)
+    try {
+      const data = parseDeckExport(await file.text())
+      if (data.cards.length === 0) {
+        setImportError('That deck file has no readable cards in it.')
+        return
+      }
+      setImportPreview(data)
+    } catch (err) {
+      setImportError((err as Error).message)
+    }
+  }
+
+  const handleImportConfirm = async () => {
+    if (!importPreview || !deckId) return
+    setImporting(true)
+    try {
+      setImportResult(await importCards(deckId, importPreview))
+      setImportPreview(null)
+    } catch (err) {
+      setImportError((err as Error).message)
+    } finally {
+      setImporting(false)
+      load()
+    }
+  }
+
   const handleBulkImport = async () => {
     if (!bulkContent.trim() || !deckId || !bulkSeparator) return
     setBulkImporting(true)
@@ -131,8 +179,32 @@ export default function DeckView() {
             </Link>
           )}
           <button
+            onClick={handleExport}
+            title="Download this deck as JSON, review progress included"
+            className="flex items-center gap-2 px-3 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors cursor-pointer"
+          >
+            <Download className="w-4 h-4" />
+            Export
+          </button>
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            title="Add cards from a deck file, keeping their review progress"
+            className="flex items-center gap-2 px-3 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors cursor-pointer"
+          >
+            <FileUp className="w-4 h-4" />
+            Import
+          </button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="application/json,.json"
+            onChange={handleFileChange}
+            className="hidden"
+          />
+          <button
             onClick={() => setShowBulk(true)}
-            className="flex items-center gap-2 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors cursor-pointer"
+            title="Paste plain-text cards, one per line — these start with no review progress"
+            className="flex items-center gap-2 px-3 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors cursor-pointer"
           >
             <Upload className="w-4 h-4" />
             Bulk Import
@@ -147,8 +219,94 @@ export default function DeckView() {
         </div>
       </div>
 
+      {importResult && (
+        <div className="flex items-start gap-2 mb-6 px-4 py-3 bg-green-50 border border-green-200 rounded-lg text-sm text-green-800">
+          <div className="flex-1">
+            <p>
+              Imported {importResult.imported} card{importResult.imported !== 1 ? 's' : ''} with their review progress.
+            </p>
+            {importResult.progressReset > 0 && (
+              <p className="text-green-700/80 mt-0.5">
+                {importResult.progressReset} had no usable progress saved and start fresh.
+              </p>
+            )}
+            {importResult.skipped > 0 && (
+              <p className="text-amber-700 mt-0.5">
+                {importResult.skipped} could not be written and were skipped.
+              </p>
+            )}
+          </div>
+          <button
+            onClick={() => setImportResult(null)}
+            className="text-green-600 hover:text-green-800 cursor-pointer"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
       {deck.description && (
         <p className="text-gray-500 mb-6">{deck.description}</p>
+      )}
+
+      {/* Import Error Modal */}
+      {importError && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg border border-gray-300 p-6 w-full max-w-sm mx-4">
+            <h2 className="text-lg text-gray-800 font-semibold mb-2">Import failed</h2>
+            <p className="text-sm text-gray-600 mb-4">{importError}</p>
+            <div className="flex justify-end">
+              <button
+                onClick={() => setImportError(null)}
+                className="px-4 py-2 bg-gray-800 text-white rounded-lg hover:bg-gray-700 cursor-pointer"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Import Confirm Modal */}
+      {importPreview && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg border border-gray-300 p-6 w-full max-w-md mx-4">
+            <h2 className="text-lg text-gray-800 font-semibold mb-2">Import cards</h2>
+            <p className="text-sm text-gray-600 mb-4">
+              Adding <span className="font-medium">{importPreview.cards.length}</span> card
+              {importPreview.cards.length !== 1 ? 's' : ''}
+              {importPreview.deck.name && (
+                <> from <span className="font-medium">{importPreview.deck.name}</span></>
+              )}
+              {' '}into <span className="font-medium">{deck.name}</span>. Cards already in this deck are left alone.
+            </p>
+            <ul className="text-sm text-gray-500 mb-4 space-y-1">
+              <li>
+                {importPreview.cards.filter(c => c.fsrs).length} arrive with their review progress intact.
+              </li>
+              {importPreview.cards.some(c => !c.fsrs) && (
+                <li className="text-amber-700">
+                  {importPreview.cards.filter(c => !c.fsrs).length} have no usable progress saved and will start fresh.
+                </li>
+              )}
+            </ul>
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => setImportPreview(null)}
+                className="px-4 py-2 text-gray-600 hover:text-gray-800 cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleImportConfirm}
+                disabled={importing}
+                className="px-4 py-2 bg-gray-800 text-white rounded-lg hover:bg-gray-700 cursor-pointer disabled:opacity-50"
+              >
+                {importing ? 'Importing...' : 'Import'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Create Card Modal */}

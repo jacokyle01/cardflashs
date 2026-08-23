@@ -1,7 +1,12 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Layers, Plus, Trash2, BookOpen, Clock, Settings, CalendarDays } from 'lucide-react'
-import { getAllDecks, createDeck, deleteDeck, countCardsForDeck, getLocalDB } from '../lib/db'
+import { Layers, Plus, Trash2, BookOpen, Clock, Settings, CalendarDays, Download, FileUp, X } from 'lucide-react'
+import {
+  getAllDecks, createDeck, deleteDeck, countCardsForDeck, getLocalDB,
+  exportAllDecks, parseCollectionExport, importCollection,
+  type CollectionExport, type CollectionImportResult,
+} from '../lib/db'
+import { downloadJSON, todayStamp } from '../lib/download'
 import type { Deck } from '../lib/types'
 import DueCalendar from '../components/DueCalendar'
 import AuthButton from '../components/AuthButton'
@@ -18,6 +23,12 @@ export default function Dashboard() {
   const [newName, setNewName] = useState('')
   const [newDesc, setNewDesc] = useState('')
   const [calendarDeckId, setCalendarDeckId] = useState<string | null>(null)
+  const [importPreview, setImportPreview] = useState<CollectionExport | null>(null)
+  const [importError, setImportError] = useState<string | null>(null)
+  const [importResult, setImportResult] = useState<CollectionImportResult | null>(null)
+  const [importing, setImporting] = useState(false)
+  const [mergeByName, setMergeByName] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
   const { auth } = useAuth()
   const userKey = auth?.decoded.sub ?? 'anon'
 
@@ -48,6 +59,44 @@ export default function Dashboard() {
     loadDecks()
   }
 
+  const handleExportAll = async () => {
+    const data = await exportAllDecks()
+    downloadJSON(data, `cardflashs-${todayStamp()}.json`)
+  }
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    // Cleared before the await so picking the same file twice still fires change.
+    e.target.value = ''
+    if (!file) return
+    setImportResult(null)
+    try {
+      const data = parseCollectionExport(await file.text())
+      if (data.decks.length === 0) {
+        setImportError('That file has no readable decks in it.')
+        return
+      }
+      setMergeByName(false)
+      setImportPreview(data)
+    } catch (err) {
+      setImportError((err as Error).message)
+    }
+  }
+
+  const handleImportConfirm = async () => {
+    if (!importPreview) return
+    setImporting(true)
+    try {
+      setImportResult(await importCollection(importPreview, { mergeByName }))
+      setImportPreview(null)
+    } catch (err) {
+      setImportError((err as Error).message)
+    } finally {
+      setImporting(false)
+      loadDecks()
+    }
+  }
+
   const handleDelete = async (id: string) => {
     await deleteDeck(id)
     loadDecks()
@@ -65,6 +114,31 @@ export default function Dashboard() {
         </div>
         <div className="flex items-center gap-2">
           <AuthButton />
+          {decks.length > 0 && (
+            <button
+              onClick={handleExportAll}
+              title="Download every deck as one JSON file, review progress included"
+              className="flex items-center gap-2 px-3 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors cursor-pointer"
+            >
+              <Download className="w-4 h-4" />
+              Export All
+            </button>
+          )}
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            title="Restore decks from a collection file, review progress included"
+            className="flex items-center gap-2 px-3 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors cursor-pointer"
+          >
+            <FileUp className="w-4 h-4" />
+            Import All
+          </button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="application/json,.json"
+            onChange={handleFileChange}
+            className="hidden"
+          />
           <Link
             to="/settings"
             className="p-2 text-gray-400 hover:text-gray-600 transition-colors"
@@ -80,6 +154,136 @@ export default function Dashboard() {
           </button>
         </div>
       </div>
+
+      {importResult && (
+        <div className="flex items-start gap-2 mb-6 px-4 py-3 bg-green-50 border border-green-200 rounded-lg text-sm text-green-800">
+          <div className="flex-1">
+            <p>
+              Imported {importResult.imported} card{importResult.imported !== 1 ? 's' : ''} into{' '}
+              {importResult.decksCreated + importResult.decksMerged} deck
+              {importResult.decksCreated + importResult.decksMerged !== 1 ? 's' : ''}
+              {importResult.decksMerged > 0 && (
+                <> ({importResult.decksCreated} created, {importResult.decksMerged} merged)</>
+              )}
+              , review progress included.
+            </p>
+            {importResult.progressReset > 0 && (
+              <p className="text-green-700/80 mt-0.5">
+                {importResult.progressReset} card{importResult.progressReset !== 1 ? 's' : ''} had no usable progress saved and start fresh.
+              </p>
+            )}
+            {importResult.skipped > 0 && (
+              <p className="text-amber-700 mt-0.5">
+                {importResult.skipped} could not be written and were skipped.
+              </p>
+            )}
+          </div>
+          <button
+            onClick={() => setImportResult(null)}
+            className="text-green-600 hover:text-green-800 cursor-pointer"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
+      {/* Import Error Modal */}
+      {importError && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg border border-gray-300 p-6 w-full max-w-sm mx-4">
+            <h2 className="text-lg text-gray-800 font-semibold mb-2">Import failed</h2>
+            <p className="text-sm text-gray-600 mb-4">{importError}</p>
+            <div className="flex justify-end">
+              <button
+                onClick={() => setImportError(null)}
+                className="px-4 py-2 bg-gray-800 text-white rounded-lg hover:bg-gray-700 cursor-pointer"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Import Confirm Modal */}
+      {importPreview && (() => {
+        const cardCount = importPreview.decks.reduce((n, d) => n + d.cards.length, 0)
+        const freshCount = importPreview.decks.reduce(
+          (n, d) => n + d.cards.filter(c => !c.fsrs).length, 0
+        )
+        const existingNames = new Set(decks.map(d => d.name))
+        const matching = importPreview.decks.filter(d => existingNames.has(d.name)).length
+        return (
+          <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+            <div className="bg-white rounded-lg border border-gray-300 p-6 w-full max-w-md mx-4">
+              <h2 className="text-lg text-gray-800 font-semibold mb-2">Import collection</h2>
+              <p className="text-sm text-gray-600 mb-4">
+                <span className="font-medium">{importPreview.decks.length}</span> deck
+                {importPreview.decks.length !== 1 ? 's' : ''} and{' '}
+                <span className="font-medium">{cardCount}</span> card{cardCount !== 1 ? 's' : ''}
+                {importPreview.exportedAt && (
+                  <>, exported {new Date(importPreview.exportedAt).toLocaleDateString()}</>
+                )}
+                .
+              </p>
+
+              <div className="space-y-2 mb-4">
+                <label className="flex items-start gap-2 text-sm text-gray-700 cursor-pointer">
+                  <input
+                    type="radio"
+                    checked={!mergeByName}
+                    onChange={() => setMergeByName(false)}
+                    className="mt-1 cursor-pointer"
+                  />
+                  <span>
+                    Create new decks
+                    <span className="block text-xs text-gray-400">
+                      Everything arrives fresh, alongside what you already have.
+                    </span>
+                  </span>
+                </label>
+                <label className="flex items-start gap-2 text-sm text-gray-700 cursor-pointer">
+                  <input
+                    type="radio"
+                    checked={mergeByName}
+                    onChange={() => setMergeByName(true)}
+                    className="mt-1 cursor-pointer"
+                  />
+                  <span>
+                    Merge into decks with the same name
+                    <span className="block text-xs text-gray-400">
+                      {matching > 0
+                        ? `${matching} of these match a deck you already have; the rest are created.`
+                        : 'No names match right now, so every deck would be created.'}
+                    </span>
+                  </span>
+                </label>
+              </div>
+
+              <p className="text-xs text-gray-400 mb-4">
+                Cards are always added, never replaced — nothing you already have is changed or removed.
+                {freshCount > 0 && ` ${freshCount} card${freshCount !== 1 ? 's' : ''} in this file have no usable progress saved and will start fresh.`}
+              </p>
+
+              <div className="flex justify-end gap-2">
+                <button
+                  onClick={() => setImportPreview(null)}
+                  className="px-4 py-2 text-gray-600 hover:text-gray-800 cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleImportConfirm}
+                  disabled={importing}
+                  className="px-4 py-2 bg-gray-800 text-white rounded-lg hover:bg-gray-700 cursor-pointer disabled:opacity-50"
+                >
+                  {importing ? 'Importing...' : 'Import'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )
+      })()}
 
       {/* Create Deck Modal */}
       {showCreate && (
