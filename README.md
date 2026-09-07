@@ -103,8 +103,12 @@ curl -X PUT -H "Authorization: Bearer $TOKEN" -H 'content-type: application/json
   -d '{"type":"deck","name":"Spanish"}' "$DB/deck:<id>"
 ```
 
-Document shapes are in [`src/lib/types.ts`](./src/lib/types.ts). Changes an
-agent makes replicate to the browser the next time it syncs. Agent tokens
+For anything beyond one-off reads, use [`scripts/cf.mjs`](./scripts/README.md):
+it lists decks, adds and bulk-imports cards, and initialises new cards'
+FSRS state the way the app does. A Claude Code skill in
+`.claude/skills/cardflashs/` teaches the agent to use it. Document shapes
+are in [`src/lib/types.ts`](./src/lib/types.ts). Changes an agent makes
+replicate to the browser the next time it syncs. Agent tokens
 cannot mint further tokens: the token endpoints accept Firebase ID tokens
 only.
 
