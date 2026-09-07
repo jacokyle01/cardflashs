@@ -40,7 +40,18 @@ async function expectOk(res: Response, what: string, okStatuses: number[] = [200
   if (okStatuses.includes(res.status)) return
   const text = await res.text().catch(() => '')
   console.error(`${what} failed: ${res.status} ${text}`)
-  throw new HttpError(502, `CouchDB: ${what} failed (${res.status})`)
+  // Surface CouchDB's reason so misconfiguration (wrong admin password,
+  // read-only ini) is diagnosable from the UI. Nothing sensitive is in it.
+  let reason = ''
+  try {
+    const body = JSON.parse(text) as { reason?: string; error?: string }
+    reason = body.reason ?? body.error ?? ''
+  } catch { /* non-JSON body */ }
+  const hint =
+    res.status === 401 ? ' — check COUCHDB_ADMIN_USER/PASSWORD'
+    : reason === 'erofs' ? ' — CouchDB cannot write local.ini (chmod 666 it)'
+    : ''
+  throw new HttpError(502, `CouchDB: ${what} failed (${res.status}${reason ? ` ${reason}` : ''})${hint}`)
 }
 
 // Idempotently create the user's database and pin its `_security`. Called on
