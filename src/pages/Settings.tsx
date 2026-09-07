@@ -4,6 +4,7 @@ import { ArrowLeft, Settings as SettingsIcon, RotateCcw } from 'lucide-react'
 import { getFSRSParams, saveFSRSParams } from '../lib/db'
 import { clearSchedulerCache } from '../lib/scheduler'
 import { generatorParameters, type FSRSParameters } from 'ts-fsrs'
+import AgentTokens from '../components/AgentTokens'
 
 const PARAM_INFO: { key: keyof FSRSParameters; label: string; description: string; type: 'number' | 'boolean' | 'steps' }[] = [
   { key: 'request_retention', label: 'Desired Retention', description: 'Target probability of recalling a card when reviewed (0-1)', type: 'number' },
@@ -50,7 +51,7 @@ export default function Settings() {
         <div className="text-gray-500 bg-gray-200 p-2 rounded">
           <SettingsIcon className="w-5 h-5" />
         </div>
-        <h1 className="text-2xl text-gray-800 font-semibold">FSRS Parameters</h1>
+        <h1 className="text-2xl text-gray-800 font-semibold">Settings</h1>
       </div>
 
       <div className="flex flex-col gap-4">
@@ -129,6 +130,8 @@ export default function Settings() {
             ))}
           </div>
         </div>
+
+        <AgentTokens />
       </div>
 
       {/* Action bar */}

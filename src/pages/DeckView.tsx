@@ -49,7 +49,7 @@ export default function DeckView() {
   const [importing, setImporting] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const { auth } = useAuth()
-  const userKey = auth?.decoded.sub ?? 'anon'
+  const userKey = auth?.user.uid ?? 'anon'
 
   const load = async () => {
     if (!deckId) return

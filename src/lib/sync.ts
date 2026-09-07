@@ -14,20 +14,19 @@ export interface SyncEvent {
 // .trim() on every env read — Cloudflare Pages' env var UI silently keeps
 // trailing whitespace, which gets URL-encoded into the remote URL and breaks
 // DNS resolution (`db.cardflashs.com%20/...`).
-const COUCHDB_URL: string = ((import.meta.env.VITE_COUCHDB_URL as string | undefined) ?? 'http://localhost:5984').trim()
-
-// Dev-only credentials for talking to CouchDB. We're skipping JWT validation
-// for now: CouchDB authenticates the request via Basic auth, and we use
-// Google's `sub` claim purely to namespace each user's remote database. Do
-// not ship admin credentials baked into a real frontend — see README for the
-// path to JWT auth in production.
-const COUCHDB_USER: string = ((import.meta.env.VITE_COUCHDB_USERNAME as string | undefined) ?? 'admin').trim()
-const COUCHDB_PASS: string = ((import.meta.env.VITE_COUCHDB_PASSWORD as string | undefined) ?? 'admin').trim()
+export const COUCHDB_URL: string = ((import.meta.env.VITE_COUCHDB_URL as string | undefined) ?? 'http://localhost:5984')
+  .trim()
+  .replace(/\/$/, '')
 
 let activeSync: PouchDB.Replication.Sync<Record<string, unknown>> | null = null
 let activeRemote: AnyPouch | null = null
 let currentStatus: SyncEvent = { status: 'idle' }
 const listeners = new Set<(e: SyncEvent) => void>()
+
+// The CouchDB JWT for the current user. Read on every request by the fetch
+// wrapper below, so rotating it (updateSyncToken) takes effect immediately
+// without restarting replication.
+let currentToken: string | null = null
 
 function emit(e: SyncEvent) {
   currentStatus = e
@@ -43,56 +42,51 @@ export function subscribeSyncStatus(cb: (e: SyncEvent) => void): () => void {
   return () => listeners.delete(cb)
 }
 
-// We still partition each user's data into `userdb-<hex(sub)>`, matching the
-// couch_peruser layout. With JWT off, we just compute the name client-side
-// and create the DB on demand using admin credentials.
-function hexEncode(s: string): string {
-  let out = ''
-  for (let i = 0; i < s.length; i++) {
-    const code = s.charCodeAt(i)
-    if (code > 0xff) {
-      const bytes = new TextEncoder().encode(s.charAt(i))
-      for (const b of bytes) out += b.toString(16).padStart(2, '0')
-    } else {
-      out += code.toString(16).padStart(2, '0')
-    }
-  }
-  return out
+export function setSyncError(message: string): void {
+  emit({ status: 'error', message })
 }
 
-function userDbName(sub: string): string {
-  return `userdb-${hexEncode(sub)}`
+function authFetch(url: string | Request, opts?: RequestInit): Promise<Response> {
+  const headers = new Headers(opts?.headers)
+  if (currentToken) headers.set('Authorization', `Bearer ${currentToken}`)
+  return fetch(url, { ...opts, headers })
 }
 
-function buildRemote(sub: string): AnyPouch {
-  const url = `${COUCHDB_URL.replace(/\/$/, '')}/${userDbName(sub)}`
-  return new PouchDB(url, {
-    auth: { username: COUCHDB_USER, password: COUCHDB_PASS },
+export function remoteDbUrl(db: string): string {
+  return `${COUCHDB_URL}/${db}`
+}
+
+function buildRemote(db: string): AnyPouch {
+  return new PouchDB(remoteDbUrl(db), {
+    fetch: authFetch,
+    // The token-exchange function creates the DB and sets its _security; the
+    // browser must not try to PUT it.
+    skip_setup: true,
   })
 }
 
-export async function startSync(sub: string, _token: string): Promise<void> {
+export async function startSync(db: string, token: string): Promise<void> {
   await stopSync()
-  emit({ status: 'connecting' })
+  currentToken = token
+  emit({ status: 'connecting', remoteUrl: remoteDbUrl(db) })
 
   const local = getLocalDB()
-  const remote = buildRemote(sub)
+  const remote = buildRemote(db)
   activeRemote = remote
 
   // Touch the remote to surface auth/reachability problems early.
-  // PouchDB will create the DB on first sync if it's missing, so a 404 is fine.
   try {
     await remote.info()
   } catch (err) {
+    // CouchDB answers 400 (not 401) for a JWT it cannot verify, e.g. one
+    // signed with a revoked key.
     const status = (err as { status?: number }).status
-    if (status === 401 || status === 403) {
-      emit({ status: 'error', message: 'CouchDB rejected credentials' })
+    if (status === 400 || status === 401 || status === 403) {
+      emit({ status: 'error', message: 'CouchDB rejected the session token' })
       return
     }
-    if (status !== 404) {
-      emit({ status: 'error', message: (err as Error).message })
-      return
-    }
+    emit({ status: 'error', message: (err as Error).message })
+    return
   }
 
   activeSync = local
@@ -112,9 +106,12 @@ export async function stopSync(): Promise<void> {
     try { await activeRemote.close() } catch { /* ignore */ }
     activeRemote = null
   }
+  currentToken = null
   emit({ status: 'idle' })
 }
 
-// Kept for API compatibility with AuthContext, which calls it whenever the
-// stored ID token changes. With JWT validation disabled it's a no-op.
-export function updateSyncToken(_token: string): void {}
+// Swap in a fresh CouchDB JWT. Live replication keeps running; the next
+// request simply carries the new token.
+export function updateSyncToken(token: string): void {
+  currentToken = token
+}

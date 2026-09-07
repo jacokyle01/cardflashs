@@ -1,118 +1,100 @@
-// Google Identity Services + JWT helpers.
-// We never verify the JWT signature client-side — verification happens at CouchDB,
-// which is configured with Google's RS256 public keys. We just decode it for UI/sync.
+// Auth state shared across the app, plus the client side of the token
+// exchange. Identity comes from Firebase; the CouchDB session is a
+// short-lived JWT minted by /api/token, which we cache so a reload can
+// resume sync before (or without) reaching the function.
 
-const GIS_SCRIPT = 'https://accounts.google.com/gsi/client'
-const TOKEN_KEY = 'cardflashs.idtoken'
+import type { User } from 'firebase/auth'
 
-export interface DecodedToken {
-  sub: string
+export interface AuthUser {
+  uid: string
   email?: string
   name?: string
   picture?: string
+}
+
+export interface CouchSession {
+  token: string
+  // Unix seconds.
   exp: number
-  iss: string
-  aud: string
+  // Remote database name, e.g. `userdb-<hex(uid)>`. Computed server-side.
+  db: string
 }
 
 export interface AuthState {
-  token: string
-  decoded: DecodedToken
+  user: AuthUser
+  // Null when signed in to Firebase but the token exchange hasn't succeeded.
+  couch: CouchSession | null
 }
 
-function b64urlDecode(input: string): string {
-  const pad = '='.repeat((4 - (input.length % 4)) % 4)
-  const b64 = (input + pad).replace(/-/g, '+').replace(/_/g, '/')
-  const bin = atob(b64)
-  let out = ''
-  for (let i = 0; i < bin.length; i++) {
-    out += '%' + bin.charCodeAt(i).toString(16).padStart(2, '0')
+export function toAuthUser(user: User): AuthUser {
+  return {
+    uid: user.uid,
+    email: user.email ?? undefined,
+    name: user.displayName ?? undefined,
+    picture: user.photoURL ?? undefined,
   }
-  return decodeURIComponent(out)
 }
 
-export function decodeJWT(token: string): DecodedToken | null {
-  const parts = token.split('.')
-  if (parts.length !== 3) return null
+// --- Token-exchange API client -------------------------------------------------
+
+const API_URL: string = ((import.meta.env.VITE_API_URL as string | undefined) ?? '').trim().replace(/\/$/, '')
+
+export type ApiFetch = (path: string, init?: RequestInit) => Promise<Response>
+
+// Attaches the Firebase ID token. Firebase refreshes it transparently.
+export function makeApiFetch(user: User): ApiFetch {
+  return async (path, init = {}) => {
+    const idToken = await user.getIdToken()
+    const headers = new Headers(init.headers)
+    headers.set('Authorization', `Bearer ${idToken}`)
+    return fetch(`${API_URL}${path}`, { ...init, headers })
+  }
+}
+
+export async function apiError(res: Response, fallback: string): Promise<Error> {
   try {
-    return JSON.parse(b64urlDecode(parts[1])) as DecodedToken
+    const body = (await res.json()) as { error?: string }
+    return new Error(body.error ?? fallback)
+  } catch {
+    return new Error(`${fallback} (${res.status})`)
+  }
+}
+
+export async function exchangeToken(apiFetch: ApiFetch): Promise<CouchSession> {
+  const res = await apiFetch('/api/token', { method: 'POST' })
+  if (!res.ok) throw await apiError(res, 'Token exchange failed')
+  const body = (await res.json()) as CouchSession
+  return { token: body.token, exp: body.exp, db: body.db }
+}
+
+// --- Session cache -------------------------------------------------------------------
+
+const SESSION_KEY = 'cardflashs.couchsession'
+
+interface StoredSession extends CouchSession {
+  uid: string
+}
+
+export function isSessionValid(s: CouchSession, marginSeconds = 60): boolean {
+  return Date.now() / 1000 < s.exp - marginSeconds
+}
+
+export function loadCachedSession(uid: string): CouchSession | null {
+  try {
+    const raw = localStorage.getItem(SESSION_KEY)
+    if (!raw) return null
+    const s = JSON.parse(raw) as StoredSession
+    if (s.uid !== uid || !isSessionValid(s)) return null
+    return { token: s.token, exp: s.exp, db: s.db }
   } catch {
     return null
   }
 }
 
-export function isTokenValid(decoded: DecodedToken): boolean {
-  return Date.now() < decoded.exp * 1000
+export function storeSession(uid: string, s: CouchSession): void {
+  localStorage.setItem(SESSION_KEY, JSON.stringify({ uid, ...s } satisfies StoredSession))
 }
 
-export function loadStoredAuth(): AuthState | null {
-  const token = localStorage.getItem(TOKEN_KEY)
-  if (!token) return null
-  const decoded = decodeJWT(token)
-  if (!decoded || !isTokenValid(decoded)) {
-    localStorage.removeItem(TOKEN_KEY)
-    return null
-  }
-  return { token, decoded }
-}
-
-export function storeAuth(token: string): AuthState | null {
-  const decoded = decodeJWT(token)
-  if (!decoded || !isTokenValid(decoded)) return null
-  localStorage.setItem(TOKEN_KEY, token)
-  return { token, decoded }
-}
-
-export function clearAuth(): void {
-  localStorage.removeItem(TOKEN_KEY)
-}
-
-let gisLoadPromise: Promise<void> | null = null
-
-export function loadGoogleIdentityServices(): Promise<void> {
-  if (gisLoadPromise) return gisLoadPromise
-  gisLoadPromise = new Promise((resolve, reject) => {
-    if (document.querySelector(`script[src="${GIS_SCRIPT}"]`)) {
-      resolve()
-      return
-    }
-    const s = document.createElement('script')
-    s.src = GIS_SCRIPT
-    s.async = true
-    s.defer = true
-    s.onload = () => resolve()
-    s.onerror = () => reject(new Error('Failed to load Google Identity Services'))
-    document.head.appendChild(s)
-  })
-  return gisLoadPromise
-}
-
-interface GoogleCredentialResponse {
-  credential: string
-}
-
-interface GoogleAccountsId {
-  initialize: (config: {
-    client_id: string
-    callback: (resp: GoogleCredentialResponse) => void
-    auto_select?: boolean
-    cancel_on_tap_outside?: boolean
-  }) => void
-  prompt: () => void
-  renderButton: (parent: HTMLElement, opts: Record<string, unknown>) => void
-  disableAutoSelect: () => void
-}
-
-declare global {
-  interface Window {
-    google?: { accounts: { id: GoogleAccountsId } }
-  }
-}
-
-export async function getGoogleAccountsId(): Promise<GoogleAccountsId> {
-  await loadGoogleIdentityServices()
-  if (!window.google?.accounts?.id) {
-    throw new Error('Google Identity Services not available')
-  }
-  return window.google.accounts.id
+export function clearSession(): void {
+  localStorage.removeItem(SESSION_KEY)
 }

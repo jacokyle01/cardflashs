@@ -24,3 +24,7 @@ dist-ssr
 *.sw?
 
 .vite
+
+# Cloudflare Pages Functions local secrets
+.dev.vars
+.wrangler

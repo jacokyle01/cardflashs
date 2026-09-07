@@ -1,0 +1,18 @@
+# Copy to .dev.vars for `npm run functions` (wrangler pages dev). These are
+# the server-side secrets for the token-exchange functions and are never
+# shipped to the browser. Production values go in the Cloudflare Pages
+# project's environment variables.
+
+# Firebase project id (from Firebase console > Project settings).
+FIREBASE_PROJECT_ID=
+
+# CouchDB as reachable from the function, plus server-admin credentials.
+COUCHDB_URL=http://localhost:5984
+COUCHDB_ADMIN_USER=admin
+COUCHDB_ADMIN_PASSWORD=admin
+
+# Base64 HMAC secret used to sign browser tokens. Must match
+# `[jwt_keys] hmac:app` in couchdb/local.ini. The value below is the dev
+# default from local.ini; generate a fresh one for production with
+#   openssl rand -base64 32
+COUCHDB_JWT_SECRET=ZGV2LW9ubHktY2FyZGZsYXNocy1qd3Qtc2VjcmV0LTAwMDA=

@@ -23,7 +23,7 @@ export default function StudySession() {
   const [revealed, setRevealed] = useState(false)
   const [finished, setFinished] = useState(false)
   const { auth } = useAuth()
-  const userKey = auth?.decoded.sub ?? 'anon'
+  const userKey = auth?.user.uid ?? 'anon'
 
   const load = async () => {
     if (!deckId) return

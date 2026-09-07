@@ -30,7 +30,7 @@ export default function Dashboard() {
   const [mergeByName, setMergeByName] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const { auth } = useAuth()
-  const userKey = auth?.decoded.sub ?? 'anon'
+  const userKey = auth?.user.uid ?? 'anon'
 
   const loadDecks = async () => {
     const allDecks = await getAllDecks()

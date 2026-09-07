@@ -45,7 +45,7 @@ const DAY_LABELS = ['', 'Mon', '', 'Wed', '', 'Fri', '']
 export default function DueCalendar({ deckId }: Props) {
   const [dueCounts, setDueCounts] = useState<Record<string, number>>({})
   const { auth } = useAuth()
-  const userKey = auth?.decoded.sub ?? 'anon'
+  const userKey = auth?.user.uid ?? 'anon'
 
   useEffect(() => {
     getCardsForDeck(deckId).then(cards => {

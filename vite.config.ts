@@ -8,6 +8,15 @@ import tailwindcss from '@tailwindcss/vite'
 // Aliasing `events` to the npm shim of the same name fixes it.
 export default defineConfig({
   plugins: [react(), tailwindcss()],
+  // In production the token-exchange functions are served by Cloudflare
+  // Pages on the same origin at /api/*. In dev, `npm run functions` runs
+  // them with wrangler on :8788 and we proxy so the app can still use
+  // relative URLs.
+  server: {
+    proxy: {
+      '/api': 'http://localhost:8788',
+    },
+  },
   resolve: {
     alias: {
       events: 'events',
