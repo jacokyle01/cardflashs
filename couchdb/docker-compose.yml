@@ -1,42 +1,38 @@
-# Local-dev CouchDB for cardflashs.
+# CouchDB for cardflashs (dev and prod use the same file).
 #
-# Brings up CouchDB 3.4 with:
-#   - admin Basic auth (admin / admin) defined directly in local.ini
-#   - JWT authentication with a dev signing key
-#   - CORS for the Vite dev server
+# Brings up CouchDB 3.4 configured entirely by ./local.ini:
+#   - admin Basic auth (used only by the token functions)
+#   - JWT authentication for browsers and agents
+#   - CORS for the app's origin
 #
-# Clients (browser, AI agents) authenticate with JWTs minted by the Pages
-# Functions under functions/ — see local.ini for the auth model. The admin
-# credentials are used only by those functions.
+# Setup:  cp local.example.ini local.ini && chmod 666 local.ini
+# Then edit local.ini for production (admin password, hmac:app, CORS).
+#
+# local.ini is mounted READ-WRITE and is the last ini file CouchDB loads,
+# so it is where CouchDB persists the hashed admin password and the agent
+# token keys the functions register at runtime. Hence the chmod: the
+# container runs as uid 5984 and must be able to write the host file.
 #
 # We bypass the official `/docker-entrypoint.sh` because its "is admin already
 # set?" heuristic exits silently (matching a commented example in default.ini)
 # and never writes the admin credentials. Since [admins] lives in our own
 # local.ini, the entrypoint's setup work isn't needed.
 #
-# Runtime config writes (the agent-token keys the functions register under
-# [jwt_keys]) go to the LAST ini file CouchDB loaded. Our local.ini is mounted
-# read-only, so we keep a writable, persisted `99-runtime.ini` after it in
-# local.d — otherwise CouchDB answers 400 `erofs` and the key would only live
-# in memory until the next restart.
-#
 # Usage:
 #   docker compose -f couchdb/docker-compose.yml up -d
-#   open http://localhost:5984/_utils    (Fauxton UI; admin / admin)
+#   open http://localhost:5984/_utils    (Fauxton UI; admin / admin in dev)
 
 services:
   couchdb:
     image: couchdb:3.4
     user: "5984:5984"           # the `couchdb` user/group baked into the image
-    entrypoint: ["sh", "-c", "touch /opt/couchdb/etc/local.d/99-runtime.ini && exec tini -- /opt/couchdb/bin/couchdb"]
+    entrypoint: ["tini", "--", "/opt/couchdb/bin/couchdb"]
+    restart: unless-stopped
     ports:
       - "5984:5984"
     volumes:
       - couchdb-data:/opt/couchdb/data
-      - couchdb-config:/opt/couchdb/etc/local.d
-      - ./local.ini:/opt/couchdb/etc/local.d/10-cardflashs.ini:ro
+      - ./local.ini:/opt/couchdb/etc/local.d/10-cardflashs.ini
 
 volumes:
   couchdb-data:
-  # Holds 99-runtime.ini: the agent-token signing keys registered at runtime.
-  couchdb-config:

@@ -33,14 +33,19 @@ You now have the three `VITE_FIREBASE_*` values and the `FIREBASE_PROJECT_ID`.
 ### CouchDB
 
 ```sh
+cp couchdb/local.example.ini couchdb/local.ini
+chmod 666 couchdb/local.ini      # CouchDB writes back into it (see below)
 docker compose -f couchdb/docker-compose.yml up -d
 curl -u admin:admin http://localhost:5984/_node/_local/_config/jwt_keys
-# -> {"hmac:app":"ZGV2..."}   (the dev signing key from couchdb/local.ini)
+# -> {"hmac:app":"ZGV2..."}   (the dev signing key from local.ini)
 ```
 
-`couchdb/local.ini` already contains everything: JWT auth, `require_valid_user`,
-CORS for the Vite dev server, admin `admin/admin`, and a dev signing key.
-Runtime-registered agent keys persist in the `couchdb-config` volume.
+`local.ini` is the entire CouchDB configuration: JWT auth,
+`require_valid_user`, CORS, admin credentials, and the signing key. It is
+gitignored because it holds secrets and because CouchDB writes into it —
+the admin password is replaced with its hash on first boot, and agent-token
+keys are appended under `[jwt_keys]` as you create them. The dev defaults
+work as-is.
 
 ### Environment files
 
@@ -107,35 +112,48 @@ openssl rand -base64 32
 
 ### CouchDB
 
-Apply the settings from `couchdb/local.ini` to the production node. Either
-edit its ini and restart, or set them live through the admin API (persisted
-as long as the last ini file CouchDB loaded is writable, which it normally is):
+On the server, in a checkout of this repo:
+
+```sh
+cp couchdb/local.example.ini couchdb/local.ini
+chmod 666 couchdb/local.ini
+$EDITOR couchdb/local.ini
+```
+
+Change the three values marked `PROD` in the file:
+
+| Section      | Key        | Value                                                    |
+|--------------|------------|----------------------------------------------------------|
+| `[admins]`   | `admin`    | a strong password (CouchDB hashes it on first boot)      |
+| `[jwt_keys]` | `hmac:app` | the base64 secret from above (= `COUCHDB_JWT_SECRET`)    |
+| `[cors]`     | `origins`  | `https://cardflashs.com` (comma-separate several)        |
+
+Then start or recreate the container. `down` keeps the `couchdb-data`
+volume, so existing databases survive:
+
+```sh
+docker compose -f couchdb/docker-compose.yml down
+docker compose -f couchdb/docker-compose.yml up -d
+```
+
+Verify:
 
 ```sh
 C=https://db.example.com; A=admin:REAL_PASSWORD
-put() { curl -s -u "$A" -X PUT "$C/_node/_local/_config/$1" -H 'content-type: application/json' -d "\"$2\""; echo; }
-
-put jwt_keys/hmac:app            "PASTE_BASE64_SECRET"
-put jwt_auth/required_claims     "exp"
-put jwt_auth/roles_claim_name    "_couchdb.roles"
-put chttpd/authentication_handlers "{chttpd_auth, jwt_authentication_handler}, {chttpd_auth, cookie_authentication_handler}, {chttpd_auth, default_authentication_handler}"
-put chttpd/enable_cors           "true"
-put cors/origins                 "https://cardflashs.com"
-put cors/headers                 "accept, authorization, content-type, origin, referer"
-put cors/methods                 "GET, PUT, POST, HEAD, DELETE"
-put chttpd/require_valid_user    "true"     # last: locks out anonymous access
+curl -s $C/_session              # "authentication_handlers":["jwt","cookie","default"]
+curl -s -o /dev/null -w '%{http_code}\n' $C/        # 401: anonymous is locked out
+curl -s -u "$A" $C/_node/_local/_config/jwt_keys      # lists hmac:app
+grep -n '^admin' couchdb/local.ini                    # now a -pbkdf2- hash
 ```
 
-Then verify that the writes persisted:
+If the last line still shows the plaintext password, CouchDB could not
+write the file: fix the permissions (`chmod 666`) and restart, because
+agent-token keys are persisted the same way and would otherwise be lost on
+restart.
 
-```sh
-curl -s -u "$A" "$C/_node/_local/_config/jwt_keys"   # must list hmac:app
-```
-
-If any `put` answers `{"error":"bad_request","reason":"erofs"}`, the last
-ini file is read-only: the value is live but will be lost on restart. Fix the
-file permissions (or add a writable ini after it) before continuing, because
-agent-token keys are written the same way.
+Later changes: edit `local.ini` and restart the container. To rotate the
+admin password, replace the hash with the new plaintext; CouchDB re-hashes
+it. Update `COUCHDB_ADMIN_PASSWORD` in Cloudflare at the same time.
 
 Existing `userdb-*` databases from the Google-`sub` era will not match the
 new Firebase uids; delete them when you are done migrating.

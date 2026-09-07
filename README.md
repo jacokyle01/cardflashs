@@ -13,6 +13,7 @@ the same user.
 npm install
 cp .env.example .env.local        # Firebase web config + CouchDB URL
 cp .dev.vars.example .dev.vars    # server-side secrets for the token functions
+cp couchdb/local.example.ini couchdb/local.ini && chmod 666 couchdb/local.ini
 docker compose -f couchdb/docker-compose.yml up -d
 npm run functions                 # token-exchange API on :8788
 npm run dev                       # app on :5173, proxies /api to :8788
@@ -120,12 +121,12 @@ only.
   from `.env.example` and the variables from `.dev.vars.example` in the
   project's environment variables (mark the CouchDB password and JWT secret
   as secrets). Step-by-step instructions are in [`SETUP.md`](./SETUP.md).
-- **CouchDB**: apply the settings in [`couchdb/local.ini`](./couchdb/local.ini)
-  with a fresh `hmac:app` secret (`openssl rand -base64 32`, the same value
-  as `COUCHDB_JWT_SECRET`), real admin credentials, and CORS `origins` set
-  to the app's origin. The last ini file CouchDB loads must be writable —
-  that is where it persists the agent keys registered at runtime (the
-  docker-compose setup keeps a `99-runtime.ini` for this). The
+- **CouchDB**: copy [`couchdb/local.example.ini`](./couchdb/local.example.ini)
+  to `couchdb/local.ini`, set a real admin password, a fresh `hmac:app`
+  secret (`openssl rand -base64 32`, the same value as `COUCHDB_JWT_SECRET`)
+  and the app's origin under `[cors]`, then run the compose file. That one
+  file is the whole configuration; CouchDB writes the hashed password and
+  runtime-registered agent keys back into it, so it must stay writable. The
   `/_node/_local/_config` API is per node, so this design assumes a
   single-node CouchDB.
 

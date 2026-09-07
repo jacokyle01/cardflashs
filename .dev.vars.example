@@ -13,6 +13,6 @@ COUCHDB_ADMIN_PASSWORD=admin
 
 # Base64 HMAC secret used to sign browser tokens. Must match
 # `[jwt_keys] hmac:app` in couchdb/local.ini. The value below is the dev
-# default from local.ini; generate a fresh one for production with
+# default from local.example.ini; generate a fresh one for production with
 #   openssl rand -base64 32
 COUCHDB_JWT_SECRET=ZGV2LW9ubHktY2FyZGZsYXNocy1qd3Qtc2VjcmV0LTAwMDA=

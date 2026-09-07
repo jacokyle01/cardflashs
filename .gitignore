@@ -28,3 +28,6 @@ dist-ssr
 # Cloudflare Pages Functions local secrets
 .dev.vars
 .wrangler
+
+# Per-environment CouchDB config (secrets; CouchDB writes into it)
+couchdb/local.ini
