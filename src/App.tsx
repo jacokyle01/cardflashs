@@ -8,7 +8,7 @@ import { AuthProvider } from './lib/AuthContext'
 export default function App() {
   return (
     <AuthProvider>
-      <div className="min-h-screen bg-slate-100">
+      <div className="min-h-screen bg-page">
         <Routes>
           <Route path="/" element={<Dashboard />} />
           <Route path="/settings" element={<Settings />} />

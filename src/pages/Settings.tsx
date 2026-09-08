@@ -5,6 +5,7 @@ import { getFSRSParams, saveFSRSParams } from '../lib/db'
 import { clearSchedulerCache } from '../lib/scheduler'
 import { generatorParameters, type FSRSParameters } from 'ts-fsrs'
 import AgentTokens from '../components/AgentTokens'
+import ThemeToggle from '../components/ThemeToggle'
 
 const PARAM_INFO: { key: keyof FSRSParameters; label: string; description: string; type: 'number' | 'boolean' | 'steps' }[] = [
   { key: 'request_retention', label: 'Desired Retention', description: 'Target probability of recalling a card when reviewed (0-1)', type: 'number' },
@@ -52,11 +53,14 @@ export default function Settings() {
           <SettingsIcon className="w-5 h-5" />
         </div>
         <h1 className="text-2xl text-gray-800 font-semibold">Settings</h1>
+        <div className="ml-auto">
+          <ThemeToggle />
+        </div>
       </div>
 
       <div className="flex flex-col gap-4">
         {/* Main parameters */}
-        <div className="shrink-0 flex flex-col rounded-lg border border-gray-300 bg-white pb-4 w-full">
+        <div className="shrink-0 flex flex-col rounded-lg border-2 border-line bg-surface pb-4 w-full">
           <div className="shrink-0 flex items-center p-3 gap-2 border-b border-gray-200">
             <span className="text-lg text-gray-800 font-semibold">Scheduling</span>
           </div>
@@ -68,7 +72,7 @@ export default function Settings() {
                   {type === 'boolean' && (
                     <button
                       onClick={() => setParams({ ...params, [key]: !params[key] })}
-                      className={`relative w-10 h-5 rounded-full transition-colors cursor-pointer ${params[key] ? 'bg-gray-800' : 'bg-gray-300'}`}
+                      className={`relative w-10 h-5 rounded-full transition-colors cursor-pointer ${params[key] ? 'bg-accent' : 'bg-gray-300'}`}
                     >
                       <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-transform ${params[key] ? 'left-5.5' : 'left-0.5'}`} />
                     </button>
@@ -104,7 +108,7 @@ export default function Settings() {
         </div>
 
         {/* Model Weights */}
-        <div className="shrink-0 flex flex-col rounded-lg border border-gray-300 bg-white pb-4 w-full">
+        <div className="shrink-0 flex flex-col rounded-lg border-2 border-line bg-surface pb-4 w-full">
           <div className="shrink-0 flex items-center p-3 gap-2 border-b border-gray-200">
             <span className="text-lg text-gray-800 font-semibold">Model Weights</span>
           </div>
@@ -138,7 +142,7 @@ export default function Settings() {
       <div className="flex items-center gap-3 mt-6">
         <button
           onClick={handleSave}
-          className="px-5 py-2.5 bg-gray-800 text-white rounded-lg hover:bg-gray-700 transition-colors cursor-pointer text-sm font-medium"
+          className="px-5 py-2.5 bg-accent text-on-accent rounded-lg hover:bg-accent-strong transition-colors cursor-pointer text-sm font-medium"
         >
           {saved ? 'Saved!' : 'Save Parameters'}
         </button>

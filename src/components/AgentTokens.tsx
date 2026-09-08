@@ -95,14 +95,14 @@ export default function AgentTokens() {
         <select
           value={ttlDays}
           onChange={(e) => setTtlDays(Number(e.target.value))}
-          className="px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white outline-none focus:border-gray-400"
+          className="px-3 py-2 border border-gray-300 rounded-lg text-sm bg-surface outline-none focus:border-gray-400"
         >
           {TTL_OPTIONS.map((o) => <option key={o.days} value={o.days}>Expires in {o.label}</option>)}
         </select>
         <button
           onClick={handleCreate}
           disabled={creating || !name.trim()}
-          className="px-4 py-2 bg-gray-800 text-white rounded-lg hover:bg-gray-700 transition-colors cursor-pointer text-sm font-medium disabled:opacity-50 flex items-center justify-center gap-1.5"
+          className="px-4 py-2 bg-accent text-on-accent rounded-lg hover:bg-accent-strong transition-colors cursor-pointer text-sm font-medium disabled:opacity-50 flex items-center justify-center gap-1.5"
         >
           {creating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Bot className="w-4 h-4" />}
           Create token
@@ -148,7 +148,7 @@ export default function AgentTokens() {
 
 function Section({ children }: { children: React.ReactNode }) {
   return (
-    <div className="shrink-0 flex flex-col rounded-lg border border-gray-300 bg-white pb-4 w-full">
+    <div className="shrink-0 flex flex-col rounded-lg border-2 border-line bg-surface pb-4 w-full">
       <div className="shrink-0 flex items-center p-3 gap-2 border-b border-gray-200">
         <span className="text-lg text-gray-800 font-semibold">Agent access</span>
       </div>
@@ -192,7 +192,7 @@ function Field({ label, value }: { label: string; value: string }) {
           {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
         </button>
       </div>
-      <pre className="text-xs font-mono bg-white border border-amber-200 rounded px-2 py-1.5 overflow-x-auto whitespace-pre-wrap break-all select-all">{value}</pre>
+      <pre className="text-xs font-mono bg-surface border border-amber-200 rounded px-2 py-1.5 overflow-x-auto whitespace-pre-wrap break-all select-all">{value}</pre>
     </div>
   )
 }

@@ -55,7 +55,7 @@ export default function AuthButton() {
     <>
       <button
         onClick={() => setOpen(true)}
-        className="flex items-center gap-1.5 px-3 py-1.5 text-sm border border-gray-300 rounded-md bg-white text-gray-700 hover:bg-gray-50 transition-colors cursor-pointer"
+        className="flex items-center gap-1.5 px-3 py-1.5 text-sm border border-gray-300 rounded-md bg-surface text-gray-700 hover:bg-gray-50 transition-colors cursor-pointer"
       >
         <LogIn className="w-4 h-4" />
         Sign in

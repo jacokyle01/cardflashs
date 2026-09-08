@@ -78,8 +78,8 @@ export default function SignInDialog({ onClose }: { onClose: () => void }) {
   const title = mode === 'signup' ? 'Create account' : mode === 'reset' ? 'Reset password' : 'Sign in'
 
   return (
-    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose() }}>
-      <div className="bg-white rounded-lg border border-gray-300 p-6 w-full max-w-sm mx-4" role="dialog" aria-modal="true" aria-labelledby="signin-title">
+    <div className="fixed inset-0 bg-backdrop flex items-center justify-center z-50" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose() }}>
+      <div className="bg-surface rounded-lg border-2 border-line p-6 w-full max-w-sm mx-4" role="dialog" aria-modal="true" aria-labelledby="signin-title">
         <div className="flex items-center justify-between mb-4">
           <h2 id="signin-title" className="text-lg text-gray-800 font-semibold">{title}</h2>
           <button onClick={onClose} title="Close" className="p-1 text-gray-400 hover:text-gray-700 cursor-pointer">
@@ -92,7 +92,7 @@ export default function SignInDialog({ onClose }: { onClose: () => void }) {
             <button
               onClick={() => void run(signInWithGoogle)}
               disabled={busy}
-              className="w-full flex items-center justify-center gap-2 px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white text-gray-700 hover:bg-gray-50 transition-colors cursor-pointer disabled:opacity-60"
+              className="w-full flex items-center justify-center gap-2 px-3 py-2 text-sm border border-gray-300 rounded-lg bg-surface text-gray-700 hover:bg-gray-50 transition-colors cursor-pointer disabled:opacity-60"
             >
               <GoogleMark />
               Continue with Google
@@ -132,7 +132,7 @@ export default function SignInDialog({ onClose }: { onClose: () => void }) {
           <button
             type="submit"
             disabled={busy}
-            className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-gray-800 text-white rounded-lg hover:bg-gray-700 transition-colors cursor-pointer text-sm font-medium disabled:opacity-60"
+            className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-accent text-on-accent rounded-lg hover:bg-accent-strong transition-colors cursor-pointer text-sm font-medium disabled:opacity-60"
           >
             {busy && <Loader2 className="w-4 h-4 animate-spin" />}
             {mode === 'signup' ? 'Create account' : mode === 'reset' ? 'Send reset link' : 'Sign in'}

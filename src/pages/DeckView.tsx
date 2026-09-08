@@ -28,6 +28,7 @@ import {
 import { parseCardContent } from '../lib/db'
 import type { Deck, FlashCard } from '../lib/types'
 import { useAuth } from '../lib/useAuth'
+import ThemeToggle from '../components/ThemeToggle'
 import { downloadJSON, slugify, todayStamp } from '../lib/download'
 
 export default function DeckView() {
@@ -169,10 +170,11 @@ export default function DeckView() {
         </Link>
         <h1 className="text-2xl text-gray-800 font-semibold">{deck.name}</h1>
         <div className="ml-auto flex items-center gap-3">
+          <ThemeToggle />
           {dueCount > 0 && (
             <Link
               to={`/deck/${deckId}/study`}
-              className="flex items-center gap-1.5 px-4 py-2 bg-gray-800 text-white rounded-lg hover:bg-gray-700 transition-colors"
+              className="flex items-center gap-1.5 px-4 py-2 bg-accent text-on-accent rounded-lg hover:bg-accent-strong transition-colors"
             >
               <Clock className="w-4 h-4" />
               Study ({dueCount})
@@ -211,7 +213,7 @@ export default function DeckView() {
           </button>
           <button
             onClick={() => setShowCreate(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-gray-800 text-white rounded-lg hover:bg-gray-700 transition-colors cursor-pointer"
+            className="flex items-center gap-2 px-4 py-2 bg-accent text-on-accent rounded-lg hover:bg-accent-strong transition-colors cursor-pointer"
           >
             <Plus className="w-4 h-4" />
             Add Card
@@ -251,14 +253,14 @@ export default function DeckView() {
 
       {/* Import Error Modal */}
       {importError && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg border border-gray-300 p-6 w-full max-w-sm mx-4">
+        <div className="fixed inset-0 bg-backdrop flex items-center justify-center z-50">
+          <div className="bg-surface rounded-lg border-2 border-line p-6 w-full max-w-sm mx-4">
             <h2 className="text-lg text-gray-800 font-semibold mb-2">Import failed</h2>
             <p className="text-sm text-gray-600 mb-4">{importError}</p>
             <div className="flex justify-end">
               <button
                 onClick={() => setImportError(null)}
-                className="px-4 py-2 bg-gray-800 text-white rounded-lg hover:bg-gray-700 cursor-pointer"
+                className="px-4 py-2 bg-accent text-on-accent rounded-lg hover:bg-accent-strong cursor-pointer"
               >
                 Close
               </button>
@@ -269,8 +271,8 @@ export default function DeckView() {
 
       {/* Import Confirm Modal */}
       {importPreview && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg border border-gray-300 p-6 w-full max-w-md mx-4">
+        <div className="fixed inset-0 bg-backdrop flex items-center justify-center z-50">
+          <div className="bg-surface rounded-lg border-2 border-line p-6 w-full max-w-md mx-4">
             <h2 className="text-lg text-gray-800 font-semibold mb-2">Import cards</h2>
             <p className="text-sm text-gray-600 mb-4">
               Adding <span className="font-medium">{importPreview.cards.length}</span> card
@@ -300,7 +302,7 @@ export default function DeckView() {
               <button
                 onClick={handleImportConfirm}
                 disabled={importing}
-                className="px-4 py-2 bg-gray-800 text-white rounded-lg hover:bg-gray-700 cursor-pointer disabled:opacity-50"
+                className="px-4 py-2 bg-accent text-on-accent rounded-lg hover:bg-accent-strong cursor-pointer disabled:opacity-50"
               >
                 {importing ? 'Importing...' : 'Import'}
               </button>
@@ -311,8 +313,8 @@ export default function DeckView() {
 
       {/* Create Card Modal */}
       {showCreate && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg border border-gray-300 p-6 w-full max-w-lg mx-4">
+        <div className="fixed inset-0 bg-backdrop flex items-center justify-center z-50">
+          <div className="bg-surface rounded-lg border-2 border-line p-6 w-full max-w-lg mx-4">
             <h2 className="text-lg text-gray-800 font-semibold mb-2">Add Card</h2>
             <p className="text-sm text-gray-500 mb-4">
               Use <code className="bg-gray-100 px-1.5 py-0.5 rounded text-xs">---</code> on its own line to separate front from back sides.
@@ -334,7 +336,7 @@ export default function DeckView() {
               </button>
               <button
                 onClick={handleCreate}
-                className="px-4 py-2 bg-gray-800 text-white rounded-lg hover:bg-gray-700 cursor-pointer"
+                className="px-4 py-2 bg-accent text-on-accent rounded-lg hover:bg-accent-strong cursor-pointer"
               >
                 Add
               </button>
@@ -345,8 +347,8 @@ export default function DeckView() {
 
       {/* Bulk Import Modal */}
       {showBulk && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg border border-gray-300 p-6 w-full max-w-lg mx-4">
+        <div className="fixed inset-0 bg-backdrop flex items-center justify-center z-50">
+          <div className="bg-surface rounded-lg border-2 border-line p-6 w-full max-w-lg mx-4">
             <h2 className="text-lg text-gray-800 font-semibold mb-2">Bulk Import</h2>
             <p className="text-sm text-gray-500 mb-4">
               One card per line: <code className="bg-gray-100 px-1.5 py-0.5 rounded text-xs">front{bulkSeparator || ','} back{bulkSeparator || ','} back2{bulkSeparator || ','} ...</code>
@@ -388,7 +390,7 @@ export default function DeckView() {
               <button
                 onClick={handleBulkImport}
                 disabled={bulkImporting}
-                className="px-4 py-2 bg-gray-800 text-white rounded-lg hover:bg-gray-700 cursor-pointer disabled:opacity-50"
+                className="px-4 py-2 bg-accent text-on-accent rounded-lg hover:bg-accent-strong cursor-pointer disabled:opacity-50"
               >
                 {bulkImporting ? 'Importing...' : 'Import'}
               </button>
@@ -409,7 +411,7 @@ export default function DeckView() {
           {cards.map((card) => (
             <div
               key={card._id}
-              className="shrink-0 flex flex-col rounded-lg border border-gray-300 bg-white pb-3 w-full"
+              className="shrink-0 flex flex-col rounded-lg border-2 border-line bg-surface pb-3 w-full"
             >
               <div className="shrink-0 flex items-center p-3 gap-2">
                 <div className="text-gray-500 bg-gray-200 p-1 rounded">

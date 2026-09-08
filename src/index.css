@@ -1,1 +1,227 @@
 @import "tailwindcss";
+
+/* ===========================================================================
+   Design tokens, in the spirit of chessrepeat (see its src/css/base.css).
+
+   The app is still written in Tailwind utilities, but every color a utility
+   resolves is routed here through a `--c-*` token via `@theme inline`. That
+   means a theme is only ever a different set of values in this file — flip the
+   tokens and `bg-gray-100`, `text-gray-800`, `border-line` and the rest all
+   come along, with no per-component dark variants anywhere.
+
+   The neutral gray ramp is *reversed* in the dark block (50 becomes the
+   darkest step, 900 the lightest), which is what makes text and fills invert
+   for free: the app uses the ramp by role — pale = fill, deep = ink. Accents
+   (red/green/blue/amber) mostly keep their value; only their pale washes flip.
+   =========================================================================== */
+
+@theme inline {
+  --font-sans: 'Fira Sans', 'Roboto', ui-sans-serif, system-ui, -apple-system,
+    'Segoe UI', sans-serif;
+
+  /* page chrome */
+  --color-page: var(--c-page);
+  --color-surface: var(--c-surface);
+  --color-recessed: var(--c-recessed);
+  --color-backdrop: var(--c-backdrop);
+  --color-line: var(--c-line);
+
+  /* the app's one saturated accent — the study/primary action. Constant
+     across themes (only accent-strong shifts so a hover still reads). */
+  --color-accent: var(--c-accent);
+  --color-accent-strong: var(--c-accent-strong);
+  --color-on-accent: var(--c-on-accent);
+
+  /* neutral ramp — reversed in dark */
+  --color-gray-50: var(--c-gray-50);
+  --color-gray-100: var(--c-gray-100);
+  --color-gray-200: var(--c-gray-200);
+  --color-gray-300: var(--c-gray-300);
+  --color-gray-400: var(--c-gray-400);
+  --color-gray-500: var(--c-gray-500);
+  --color-gray-600: var(--c-gray-600);
+  --color-gray-700: var(--c-gray-700);
+  --color-gray-800: var(--c-gray-800);
+  --color-gray-900: var(--c-gray-900);
+
+  /* accents — only the pale washes flip in dark */
+  --color-green-50: var(--c-green-50);
+  --color-green-200: var(--c-green-200);
+  --color-green-400: var(--c-green-400);
+  --color-green-500: var(--c-green-500);
+  --color-green-600: var(--c-green-600);
+  --color-green-700: var(--c-green-700);
+  --color-green-800: var(--c-green-800);
+
+  --color-amber-50: var(--c-amber-50);
+  --color-amber-100: var(--c-amber-100);
+  --color-amber-200: var(--c-amber-200);
+  --color-amber-700: var(--c-amber-700);
+  --color-amber-800: var(--c-amber-800);
+  --color-amber-900: var(--c-amber-900);
+
+  --color-red-500: var(--c-red-500);
+  --color-red-600: var(--c-red-600);
+  --color-orange-500: var(--c-orange-500);
+  --color-orange-600: var(--c-orange-600);
+  --color-blue-500: var(--c-blue-500);
+  --color-blue-600: var(--c-blue-600);
+}
+
+/* ---------- light (default) ---------- */
+:root {
+  color-scheme: light;
+
+  --c-page: #fafafa;
+  /* not pure white: a hair of gray keeps cards from glaring against the page,
+     so the 2px borders do the separating, not brightness */
+  --c-surface: #fcfcfd;
+  --c-recessed: #f3f3f3;
+  --c-backdrop: rgb(0 0 0 / 0.5);
+  --c-line: #d1d5db;
+
+  --c-accent: #2563eb;
+  --c-accent-strong: #1d4ed8;
+  --c-on-accent: #ffffff;
+
+  --c-gray-50: #f9fafb;
+  --c-gray-100: #f3f4f6;
+  --c-gray-200: #e5e7eb;
+  --c-gray-300: #d1d5db;
+  --c-gray-400: #9ca3af;
+  --c-gray-500: #6b7280;
+  --c-gray-600: #4b5563;
+  --c-gray-700: #374151;
+  --c-gray-800: #1f2937;
+  --c-gray-900: #111827;
+
+  --c-green-50: #f0fdf4;
+  --c-green-200: #bbf7d0;
+  --c-green-400: #4ade80;
+  --c-green-500: #22c55e;
+  --c-green-600: #16a34a;
+  --c-green-700: #15803d;
+  --c-green-800: #166534;
+
+  --c-amber-50: #fffbeb;
+  --c-amber-100: #fef3c7;
+  --c-amber-200: #fde68a;
+  --c-amber-700: #b45309;
+  --c-amber-800: #92400e;
+  --c-amber-900: #78350f;
+
+  --c-red-500: #ef4444;
+  --c-red-600: #dc2626;
+  --c-orange-500: #f97316;
+  --c-orange-600: #ea580c;
+  --c-blue-500: #3b82f6;
+  --c-blue-600: #2563eb;
+}
+
+/* ---------- dark ----------
+   Applied automatically when the OS prefers dark (unless the user forced
+   light), and whenever the theme toggle writes data-theme="dark". */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    color-scheme: dark;
+
+    --c-page: #14171c;
+    --c-surface: #1c2027;
+    --c-recessed: #0f1216;
+    --c-backdrop: rgb(0 0 0 / 0.7);
+    --c-line: #3b434f;
+
+    --c-accent: #3b82f6;
+    --c-accent-strong: #60a5fa;
+    --c-on-accent: #f8fafc;
+
+    /* neutrals, reversed and slightly blued so they don't go muddy on the
+       blue-black page */
+    --c-gray-50: #171a20;
+    --c-gray-100: #1f242c;
+    --c-gray-200: #2b313b;
+    --c-gray-300: #3b434f;
+    --c-gray-400: #6b7280;
+    --c-gray-500: #9199a6;
+    --c-gray-600: #b4bcc8;
+    --c-gray-700: #d3d9e1;
+    --c-gray-800: #e6eaef;
+    --c-gray-900: #f4f6f9;
+
+    --c-green-50: #0f2418;
+    --c-green-200: #1f4d33;
+    --c-green-400: #4ade80;
+    --c-green-500: #22c55e;
+    --c-green-600: #22c55e;
+    --c-green-700: #4ade80;
+    --c-green-800: #86efac;
+
+    --c-amber-50: #2a1f08;
+    --c-amber-100: #3a2c08;
+    --c-amber-200: #6b4e12;
+    --c-amber-700: #fbbf24;
+    --c-amber-800: #fcd34d;
+    --c-amber-900: #fcd9a0;
+
+    --c-red-500: #f87171;
+    --c-red-600: #ef4444;
+    --c-orange-500: #fb923c;
+    --c-orange-600: #f97316;
+    --c-blue-500: #60a5fa;
+    --c-blue-600: #3b82f6;
+  }
+}
+
+/* the toggle's explicit choice wins in both directions */
+:root[data-theme='dark'] {
+  color-scheme: dark;
+
+  --c-page: #14171c;
+  --c-surface: #1c2027;
+  --c-recessed: #0f1216;
+  --c-backdrop: rgb(0 0 0 / 0.7);
+  --c-line: #3b434f;
+
+  --c-accent: #3b82f6;
+  --c-accent-strong: #60a5fa;
+  --c-on-accent: #f8fafc;
+
+  --c-gray-50: #171a20;
+  --c-gray-100: #1f242c;
+  --c-gray-200: #2b313b;
+  --c-gray-300: #3b434f;
+  --c-gray-400: #6b7280;
+  --c-gray-500: #9199a6;
+  --c-gray-600: #b4bcc8;
+  --c-gray-700: #d3d9e1;
+  --c-gray-800: #e6eaef;
+  --c-gray-900: #f4f6f9;
+
+  --c-green-50: #0f2418;
+  --c-green-200: #1f4d33;
+  --c-green-400: #4ade80;
+  --c-green-500: #22c55e;
+  --c-green-600: #22c55e;
+  --c-green-700: #4ade80;
+  --c-green-800: #86efac;
+
+  --c-amber-50: #2a1f08;
+  --c-amber-100: #3a2c08;
+  --c-amber-200: #6b4e12;
+  --c-amber-700: #fbbf24;
+  --c-amber-800: #fcd34d;
+  --c-amber-900: #fcd9a0;
+
+  --c-red-500: #f87171;
+  --c-red-600: #ef4444;
+  --c-orange-500: #fb923c;
+  --c-orange-600: #f97316;
+  --c-blue-500: #60a5fa;
+  --c-blue-600: #3b82f6;
+}
+
+body {
+  background: var(--c-page);
+  color: var(--c-gray-800);
+  font-family: var(--font-sans);
+}

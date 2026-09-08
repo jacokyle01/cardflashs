@@ -10,6 +10,7 @@ import { downloadJSON, todayStamp } from '../lib/download'
 import type { Deck } from '../lib/types'
 import DueCalendar from '../components/DueCalendar'
 import AuthButton from '../components/AuthButton'
+import ThemeToggle from '../components/ThemeToggle'
 import { useAuth } from '../lib/useAuth'
 
 interface DeckWithCounts extends Deck {
@@ -139,6 +140,7 @@ export default function Dashboard() {
             onChange={handleFileChange}
             className="hidden"
           />
+          <ThemeToggle />
           <Link
             to="/settings"
             className="p-2 text-gray-400 hover:text-gray-600 transition-colors"
@@ -147,7 +149,7 @@ export default function Dashboard() {
           </Link>
           <button
             onClick={() => setShowCreate(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-gray-800 text-white rounded-lg hover:bg-gray-700 transition-colors cursor-pointer"
+            className="flex items-center gap-2 px-4 py-2 bg-accent text-on-accent rounded-lg hover:bg-accent-strong transition-colors cursor-pointer"
           >
             <Plus className="w-4 h-4" />
             New Deck
@@ -189,14 +191,14 @@ export default function Dashboard() {
 
       {/* Import Error Modal */}
       {importError && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg border border-gray-300 p-6 w-full max-w-sm mx-4">
+        <div className="fixed inset-0 bg-backdrop flex items-center justify-center z-50">
+          <div className="bg-surface rounded-lg border-2 border-line p-6 w-full max-w-sm mx-4">
             <h2 className="text-lg text-gray-800 font-semibold mb-2">Import failed</h2>
             <p className="text-sm text-gray-600 mb-4">{importError}</p>
             <div className="flex justify-end">
               <button
                 onClick={() => setImportError(null)}
-                className="px-4 py-2 bg-gray-800 text-white rounded-lg hover:bg-gray-700 cursor-pointer"
+                className="px-4 py-2 bg-accent text-on-accent rounded-lg hover:bg-accent-strong cursor-pointer"
               >
                 Close
               </button>
@@ -214,8 +216,8 @@ export default function Dashboard() {
         const existingNames = new Set(decks.map(d => d.name))
         const matching = importPreview.decks.filter(d => existingNames.has(d.name)).length
         return (
-          <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
-            <div className="bg-white rounded-lg border border-gray-300 p-6 w-full max-w-md mx-4">
+          <div className="fixed inset-0 bg-backdrop flex items-center justify-center z-50">
+            <div className="bg-surface rounded-lg border-2 border-line p-6 w-full max-w-md mx-4">
               <h2 className="text-lg text-gray-800 font-semibold mb-2">Import collection</h2>
               <p className="text-sm text-gray-600 mb-4">
                 <span className="font-medium">{importPreview.decks.length}</span> deck
@@ -275,7 +277,7 @@ export default function Dashboard() {
                 <button
                   onClick={handleImportConfirm}
                   disabled={importing}
-                  className="px-4 py-2 bg-gray-800 text-white rounded-lg hover:bg-gray-700 cursor-pointer disabled:opacity-50"
+                  className="px-4 py-2 bg-accent text-on-accent rounded-lg hover:bg-accent-strong cursor-pointer disabled:opacity-50"
                 >
                   {importing ? 'Importing...' : 'Import'}
                 </button>
@@ -287,8 +289,8 @@ export default function Dashboard() {
 
       {/* Create Deck Modal */}
       {showCreate && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg border border-gray-300 p-6 w-full max-w-md mx-4">
+        <div className="fixed inset-0 bg-backdrop flex items-center justify-center z-50">
+          <div className="bg-surface rounded-lg border-2 border-line p-6 w-full max-w-md mx-4">
             <h2 className="text-lg text-gray-800 font-semibold mb-4">Create New Deck</h2>
             <input
               autoFocus
@@ -315,7 +317,7 @@ export default function Dashboard() {
               </button>
               <button
                 onClick={handleCreate}
-                className="px-4 py-2 bg-gray-800 text-white rounded-lg hover:bg-gray-700 cursor-pointer"
+                className="px-4 py-2 bg-accent text-on-accent rounded-lg hover:bg-accent-strong cursor-pointer"
               >
                 Create
               </button>
@@ -336,7 +338,7 @@ export default function Dashboard() {
           {decks.map((deck) => (
             <div
               key={deck._id}
-              className="shrink-0 flex flex-col rounded-lg border border-gray-300 bg-white pb-3 w-full"
+              className="shrink-0 flex flex-col rounded-lg border-2 border-line bg-surface pb-3 w-full"
             >
               <div className="shrink-0 flex items-center p-3 gap-2">
                 <div className="text-gray-500 bg-gray-200 p-1 rounded">
@@ -352,7 +354,7 @@ export default function Dashboard() {
                   {deck.due > 0 && (
                     <Link
                       to={`/deck/${deck._id}/study`}
-                      className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-gray-800 text-white rounded-lg hover:bg-gray-700 transition-colors"
+                      className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-accent text-on-accent rounded-lg hover:bg-accent-strong transition-colors"
                     >
                       <Clock className="w-3.5 h-3.5" />
                       Study ({deck.due})

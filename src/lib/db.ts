@@ -194,6 +194,48 @@ export async function countCardsForDeck(deckId: string): Promise<{ total: number
   return { total: cards.length, due }
 }
 
+// --- Next-card selection (chessrepeat-style) ---
+
+// chessrepeat picks what to train next not from a queue snapshot but by scanning
+// live state on every call (see computeNextTrainableNode in its util/training.ts):
+//   - recall: the next enabled card that is due
+//   - learn:  the next enabled card never seen before
+// Porting that here means the study session re-asks for "the next card" after
+// each review/skip/delete instead of marching through a list it captured up
+// front, so a card just graded Again, a deletion, or an edit are all reflected
+// immediately.
+export type TrainingMethod = 'recall' | 'learn'
+
+export interface TrainableResult {
+  next: FlashCard | null
+  // how many cards still match the method, minus the ones set aside this session
+  remaining: number
+}
+
+export async function getNextTrainable(
+  deckId: string,
+  method: TrainingMethod = 'recall',
+  exclude?: ReadonlySet<string>,
+): Promise<TrainableResult> {
+  const cards = await getCardsForDeck(deckId)
+  const now = Date.now()
+
+  const matches = cards.filter(c => {
+    if (exclude?.has(c._id)) return false
+    return method === 'recall'
+      ? new Date(c.fsrs.due).getTime() <= now
+      : c.fsrs.reps === 0
+  })
+
+  // Recall surfaces the most-overdue card first; learn keeps natural
+  // (creation) order so a deck is learned front to back.
+  if (method === 'recall') {
+    matches.sort((a, b) => new Date(a.fsrs.due).getTime() - new Date(b.fsrs.due).getTime())
+  }
+
+  return { next: matches[0] ?? null, remaining: matches.length }
+}
+
 // --- Export / import ---
 
 // Deck files are JSON rather than the line-based text Bulk Import accepts,
