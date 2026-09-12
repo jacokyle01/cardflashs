@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
-import { ArrowLeft, RotateCcw, Eye, SkipForward, Trash2 } from 'lucide-react'
-import { getDeck, getNextTrainable, resetCard, deleteCard } from '../lib/db'
+import { ArrowLeft, RotateCcw, Eye, SkipForward, Trash2, Pencil, Check, X } from 'lucide-react'
+import { getDeck, getNextTrainable, resetCard, deleteCard, updateCard, parseCardContent } from '../lib/db'
 import { reviewAndSave } from '../lib/scheduler'
 import { Rating, type Grade } from 'ts-fsrs'
 import type { Deck, FlashCard } from '../lib/types'
@@ -25,6 +25,8 @@ export default function StudySession() {
   const [revealed, setRevealed] = useState(false)
   const [finished, setFinished] = useState(false)
   const [confirmingDelete, setConfirmingDelete] = useState(false)
+  const [editing, setEditing] = useState(false)
+  const [editContent, setEditContent] = useState('')
   // Cards set aside for this session (skipped or reset). They're excluded from
   // getNextTrainable so it doesn't hand the same card straight back.
   const skipped = useRef<Set<string>>(new Set())
@@ -40,6 +42,7 @@ export default function StudySession() {
     setRemaining(remaining)
     setRevealed(false)
     setConfirmingDelete(false)
+    setEditing(false)
     if (next) {
       setCard(next)
       setFinished(false)
@@ -78,6 +81,25 @@ export default function StudySession() {
     skipped.current.add(card._id)
     loadNext()
   }, [card, loadNext])
+
+  const handleEditStart = useCallback(() => {
+    if (!card) return
+    setEditContent([card.front.content, ...card.backs.map(b => b.content)].join('\n---\n'))
+    setEditing(true)
+  }, [card])
+
+  const handleEditSave = useCallback(async () => {
+    if (!card) return
+    const { front, backs } = parseCardContent(editContent)
+    const updated = await updateCard({
+      ...card,
+      front: { content: front },
+      backs: backs.map(content => ({ content })),
+    })
+    // Keep studying the same card with its new content, rather than advancing.
+    setCard(updated)
+    setEditing(false)
+  }, [card, editContent])
 
   const handleDelete = useCallback(async () => {
     if (!card) return
@@ -164,6 +186,14 @@ export default function StudySession() {
               Reset
             </button>
             <button
+              onClick={handleEditStart}
+              title="Edit this card's front and back"
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-md cursor-pointer transition-colors"
+            >
+              <Pencil className="w-3.5 h-3.5" />
+              Edit
+            </button>
+            <button
               onClick={handleDelete}
               onBlur={() => setConfirmingDelete(false)}
               title="Delete this card permanently"
@@ -178,6 +208,42 @@ export default function StudySession() {
             </button>
           </div>
 
+          {editing ? (
+            /* Inline editor — same ---separated format as the deck editor */
+            <div className="p-6">
+              <p className="text-sm text-gray-500 mb-3">
+                Use <code className="bg-gray-100 px-1.5 py-0.5 rounded text-xs">---</code> on its own line to separate front from back sides.
+              </p>
+              <textarea
+                autoFocus
+                value={editContent}
+                onChange={(e) => setEditContent(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Escape') setEditing(false)
+                  if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) handleEditSave()
+                }}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg outline-none focus:border-gray-400 resize-none font-mono text-sm bg-surface text-gray-800"
+                rows={6}
+              />
+              <div className="flex justify-end gap-2 mt-3">
+                <button
+                  onClick={() => setEditing(false)}
+                  className="flex items-center gap-1.5 px-4 py-2 text-gray-600 hover:text-gray-800 cursor-pointer text-sm"
+                >
+                  <X className="w-4 h-4" />
+                  Cancel
+                </button>
+                <button
+                  onClick={handleEditSave}
+                  className="flex items-center gap-1.5 px-4 py-2 bg-accent text-on-accent rounded-lg hover:bg-accent-strong cursor-pointer text-sm"
+                >
+                  <Check className="w-4 h-4" />
+                  Save
+                </button>
+              </div>
+            </div>
+          ) : (
+          <>
           {/* Front */}
           <div className="p-8 text-center">
             <p className="text-sm text-gray-400 uppercase tracking-wide mb-3">Front</p>
@@ -228,6 +294,8 @@ export default function StudySession() {
                 Keyboard: 1 Again &middot; 2 Hard &middot; 3 Good &middot; 4 Easy &middot; S Skip
               </p>
             </>
+          )}
+          </>
           )}
         </div>
       ) : null}
