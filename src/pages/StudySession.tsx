@@ -269,7 +269,7 @@ export default function StudySession() {
                   {card.backs.map((back, i) => (
                     <div
                       key={i}
-                      className="bg-gray-50 border border-gray-200 rounded-lg px-4 py-2 text-lg text-gray-700"
+                      className="bg-gray-50 border border-gray-200 rounded-lg px-4 py-2 text-lg text-gray-700 whitespace-pre-wrap"
                     >
                       {back.content}
                     </div>
