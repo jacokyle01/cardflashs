@@ -225,3 +225,51 @@ body {
   color: var(--c-gray-800);
   font-family: var(--font-sans);
 }
+
+/* ---------- card content (markdown / mermaid) ----------
+   Tailwind's preflight strips element styles, so rendered card Markdown gets
+   a minimal set back here. Sizes are relative so the wrapper's text-* wins. */
+.card-md {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.card-md > * + * { margin-top: 0.5em; }
+.card-md p { white-space: pre-wrap; }
+.card-md ul { list-style: disc; padding-left: 1.4em; text-align: left; }
+.card-md ol { list-style: decimal; padding-left: 1.4em; text-align: left; }
+.card-md h1, .card-md h2, .card-md h3 { font-weight: 600; }
+.card-md h1 { font-size: 1.3em; }
+.card-md h2 { font-size: 1.15em; }
+.card-md strong { font-weight: 600; }
+.card-md em { font-style: italic; }
+.card-md a { color: var(--c-blue-600); text-decoration: underline; }
+.card-md code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.875em;
+  background: var(--c-recessed);
+  border-radius: 4px;
+  padding: 0.1em 0.3em;
+}
+.card-md pre {
+  text-align: left;
+  background: var(--c-recessed);
+  border-radius: 6px;
+  padding: 0.6em 0.8em;
+  overflow-x: auto;
+}
+.card-md pre code { background: none; padding: 0; }
+.card-md blockquote {
+  border-left: 3px solid var(--c-line);
+  padding-left: 0.8em;
+  color: var(--c-gray-500);
+  text-align: left;
+}
+.card-md table { border-collapse: collapse; margin-inline: auto; }
+.card-md th, .card-md td { border: 1px solid var(--c-line); padding: 0.2em 0.6em; }
+.card-md img { display: inline-block; max-width: 100%; max-height: 24rem; border-radius: 6px; }
+.card-md .mermaid-diagram { display: flex; justify-content: center; }
+.card-md .mermaid-diagram svg { max-width: 100%; height: auto; }
+
+.card-md-compact img { max-height: 5rem; }
+.card-md-compact .mermaid-diagram svg { max-height: 8rem; width: auto; }
+.card-md-compact > * + * { margin-top: 0.25em; }

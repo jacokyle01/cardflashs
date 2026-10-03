@@ -15,10 +15,11 @@ the pieces fit together.
      longer used and can be deleted from Google Cloud later.
    - **Email/Password**: enable (leave "Email link" off).
 
-   Under **Sign-in method → Advanced**, keep the default *Prevent creation of
-   multiple accounts with the same email address*. That setting is what makes
+   Under **Sign-in method → Advanced**, keep the default _Prevent creation of
+   multiple accounts with the same email address_. That setting is what makes
    a password account and a Google account with the same email resolve to
    one user, and therefore one database.
+
 3. **Authentication → Settings → Authorized domains.** `localhost` is
    already there. Add every domain you will serve the app from, e.g.
    `cardflashs.com` and `cardflashs.pages.dev`. No wildcards.
@@ -122,11 +123,11 @@ $EDITOR couchdb/local.ini
 
 Change the three values marked `PROD` in the file:
 
-| Section      | Key        | Value                                                    |
-|--------------|------------|----------------------------------------------------------|
-| `[admins]`   | `admin`    | a strong password (CouchDB hashes it on first boot)      |
-| `[jwt_keys]` | `hmac:app` | the base64 secret from above (= `COUCHDB_JWT_SECRET`)    |
-| `[cors]`     | `origins`  | `https://cardflashs.com` (comma-separate several)        |
+| Section      | Key        | Value                                                 |
+| ------------ | ---------- | ----------------------------------------------------- |
+| `[admins]`   | `admin`    | a strong password (CouchDB hashes it on first boot)   |
+| `[jwt_keys]` | `hmac:app` | the base64 secret from above (= `COUCHDB_JWT_SECRET`) |
+| `[cors]`     | `origins`  | `https://cardflashs.com` (comma-separate several)     |
 
 Then start or recreate the container. `down` keeps the `couchdb-data`
 volume, so existing databases survive:

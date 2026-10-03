@@ -26,6 +26,7 @@ import {
   type DeckExport, type ImportResult,
 } from '../lib/db'
 import { parseCardContent } from '../lib/db'
+import CardContent from '../components/CardContent'
 import type { Deck, FlashCard } from '../lib/types'
 import { useAuth } from '../lib/useAuth'
 import ThemeToggle from '../components/ThemeToggle'
@@ -436,7 +437,7 @@ export default function DeckView() {
                   </div>
                 ) : (
                   <>
-                    <span className="text-gray-800 font-medium">{card.front.content}</span>
+                    <CardContent content={card.front.content} compact className="text-gray-800 font-medium min-w-0" />
                     <div className="ml-auto flex items-center gap-2">
                       {new Date(card.fsrs.due) <= new Date() && (
                         <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">Due</span>
@@ -466,9 +467,9 @@ export default function DeckView() {
               {editingId !== card._id && (
                 <div className="px-3 flex flex-wrap gap-2">
                   {card.backs.map((back, i) => (
-                    <span key={i} className="text-sm text-gray-500 bg-gray-50 border border-gray-200 px-2 py-0.5 rounded">
-                      {back.content}
-                    </span>
+                    <div key={i} className="text-sm text-gray-500 bg-gray-50 border border-gray-200 px-2 py-0.5 rounded max-w-full">
+                      <CardContent content={back.content} compact />
+                    </div>
                   ))}
                 </div>
               )}

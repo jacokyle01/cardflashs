@@ -7,6 +7,7 @@ import { Rating, type Grade } from 'ts-fsrs'
 import type { Deck, FlashCard } from '../lib/types'
 import { useAuth } from '../lib/useAuth'
 import ThemeToggle from '../components/ThemeToggle'
+import CardContent from '../components/CardContent'
 
 const GRADE_BUTTONS = [
   { grade: Rating.Again, label: 'Again', color: 'bg-red-500 hover:bg-red-600' },
@@ -247,7 +248,7 @@ export default function StudySession() {
           {/* Front */}
           <div className="p-8 text-center">
             <p className="text-sm text-gray-400 uppercase tracking-wide mb-3">Front</p>
-            <p className="text-2xl text-gray-800 font-medium">{card.front.content}</p>
+            <CardContent content={card.front.content} className="text-2xl text-gray-800 font-medium" />
           </div>
 
           {/* Reveal / Back */}
@@ -269,9 +270,9 @@ export default function StudySession() {
                   {card.backs.map((back, i) => (
                     <div
                       key={i}
-                      className="bg-gray-50 border border-gray-200 rounded-lg px-4 py-2 text-lg text-gray-700 whitespace-pre-wrap"
+                      className="bg-gray-50 border border-gray-200 rounded-lg px-4 py-2 text-lg text-gray-700 max-w-full"
                     >
-                      {back.content}
+                      <CardContent content={back.content} />
                     </div>
                   ))}
                 </div>
