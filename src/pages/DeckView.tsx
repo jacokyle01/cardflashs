@@ -21,12 +21,12 @@ function formatDueIn(due: Date | string): string {
   return `in ${years}y`
 }
 import {
-  getDeck, getCardsForDeck, createCard, deleteCard, updateCard, getLocalDB,
+  getDeck, getCardsForDeck, createCard, deleteCard, editCard, getLocalDB,
   exportDeck, parseDeckExport, importCards,
   type DeckExport, type ImportResult,
 } from '../lib/db'
-import { parseCardContent } from '../lib/db'
 import CardContent from '../components/CardContent'
+import CardEditor from '../components/CardEditor'
 import type { Deck, FlashCard } from '../lib/types'
 import { useAuth } from '../lib/useAuth'
 import ThemeToggle from '../components/ThemeToggle'
@@ -90,12 +90,7 @@ export default function DeckView() {
     if (!editingId) return
     const card = cards.find(c => c._id === editingId)
     if (!card) return
-    const { front, backs } = parseCardContent(editContent)
-    await updateCard({
-      ...card,
-      front: { content: front },
-      backs: backs.map(content => ({ content })),
-    })
+    await editCard(card, editContent)
     setEditingId(null)
     load()
   }
@@ -318,17 +313,17 @@ export default function DeckView() {
           <div className="bg-surface rounded-lg border-2 border-line p-6 w-full max-w-lg mx-4">
             <h2 className="text-lg text-gray-800 font-semibold mb-2">Add Card</h2>
             <p className="text-sm text-gray-500 mb-4">
-              Use <code className="bg-gray-100 px-1.5 py-0.5 rounded text-xs">---</code> on its own line to separate front from back sides.
+              Use <code className="bg-gray-100 px-1.5 py-0.5 rounded text-xs">---</code> on its own line to separate front from back sides. Paste or drop images anywhere in the text.
             </p>
-            <textarea
+            <CardEditor
               autoFocus
               placeholder={"hola\n---\nhello"}
               value={rawContent}
-              onChange={(e) => setRawContent(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg mb-4 outline-none focus:border-gray-400 resize-none font-mono text-sm"
+              onChange={setRawContent}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg outline-none focus:border-gray-400 resize-none font-mono text-sm"
               rows={6}
             />
-            <div className="flex justify-end gap-2">
+            <div className="flex justify-end gap-2 mt-4">
               <button
                 onClick={() => { setShowCreate(false); setRawContent('') }}
                 className="px-4 py-2 text-gray-600 hover:text-gray-800 cursor-pointer"
@@ -420,9 +415,10 @@ export default function DeckView() {
                 </div>
                 {editingId === card._id ? (
                   <div className="flex-1">
-                    <textarea
+                    <CardEditor
+                      cardId={card._id}
                       value={editContent}
-                      onChange={(e) => setEditContent(e.target.value)}
+                      onChange={setEditContent}
                       className="w-full px-2 py-1 border border-gray-300 rounded font-mono text-sm outline-none focus:border-gray-400 resize-none"
                       rows={4}
                     />
@@ -437,7 +433,7 @@ export default function DeckView() {
                   </div>
                 ) : (
                   <>
-                    <CardContent content={card.front.content} compact className="text-gray-800 font-medium min-w-0" />
+                    <CardContent content={card.front.content} cardId={card._id} compact className="text-gray-800 font-medium min-w-0" />
                     <div className="ml-auto flex items-center gap-2">
                       {new Date(card.fsrs.due) <= new Date() && (
                         <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">Due</span>
@@ -468,7 +464,7 @@ export default function DeckView() {
                 <div className="px-3 flex flex-wrap gap-2">
                   {card.backs.map((back, i) => (
                     <div key={i} className="text-sm text-gray-500 bg-gray-50 border border-gray-200 px-2 py-0.5 rounded max-w-full">
-                      <CardContent content={back.content} compact />
+                      <CardContent content={back.content} cardId={card._id} compact />
                     </div>
                   ))}
                 </div>

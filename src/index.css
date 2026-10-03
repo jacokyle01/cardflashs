@@ -267,9 +267,21 @@ body {
 .card-md table { border-collapse: collapse; margin-inline: auto; }
 .card-md th, .card-md td { border: 1px solid var(--c-line); padding: 0.2em 0.6em; }
 .card-md img { display: inline-block; max-width: 100%; max-height: 24rem; border-radius: 6px; }
+.card-img-placeholder {
+  display: inline-block;
+  width: 6rem;
+  height: 4rem;
+  border-radius: 6px;
+  background: var(--c-recessed);
+  vertical-align: middle;
+}
 .card-md .mermaid-diagram { display: flex; justify-content: center; }
 .card-md .mermaid-diagram svg { max-width: 100%; height: auto; }
 
 .card-md-compact img { max-height: 5rem; }
 .card-md-compact .mermaid-diagram svg { max-height: 8rem; width: auto; }
 .card-md-compact > * + * { margin-top: 0.25em; }
+
+/* image previews under the card editor */
+.card-thumb img { max-height: 3rem; }
+.card-thumb .card-img-placeholder { width: 4rem; height: 3rem; }

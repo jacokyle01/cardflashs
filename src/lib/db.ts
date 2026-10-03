@@ -1,5 +1,6 @@
 import PouchDB from './pouch'
 import type { Deck, FlashCard, CardSide } from './types'
+import { getImageBlob, isAttachmentName, referencedImages } from './attachments'
 import { createEmptyCard, generatorParameters, type FSRSParameters, type Card as FSRSCard } from 'ts-fsrs'
 
 // Loose generic so Deck / FlashCard / SettingsDoc — none of which carry an
@@ -127,6 +128,38 @@ export function parseCardContent(raw: string): { front: string; backs: string[] 
   }
 }
 
+// The attachments a card should carry for its current text: images it already
+// stores are kept as stubs, images pasted in since are added from the
+// attachments cache, and images no longer referenced are dropped (PouchDB
+// deletes attachments missing from a put).
+async function attachmentsFor(
+  existing: FlashCard['_attachments'],
+  texts: string[],
+): Promise<FlashCard['_attachments']> {
+  const out: PouchDB.Core.Attachments = {}
+  for (const name of referencedImages(texts)) {
+    const stored = existing?.[name]
+    if (stored) {
+      out[name] = stored
+      continue
+    }
+    const blob = await getImageBlob(name)
+    if (blob) out[name] = { content_type: blob.type, data: blob }
+  }
+  return Object.keys(out).length ? out : undefined
+}
+
+function withAttachments(card: FlashCard, atts: FlashCard['_attachments']): FlashCard {
+  const next = { ...card }
+  if (atts) next._attachments = atts
+  else delete next._attachments
+  return next
+}
+
+export async function loadCardImage(cardId: string, name: string): Promise<Blob> {
+  return (await getLocalDB().getAttachment(cardId, name)) as Blob
+}
+
 export async function createCard(deckId: string, raw: string): Promise<FlashCard> {
   const { front, backs } = parseCardContent(raw)
   const now = new Date().toISOString()
@@ -141,8 +174,22 @@ export async function createCard(deckId: string, raw: string): Promise<FlashCard
     updatedAt: now,
   }
   const db = getLocalDB()
-  const res = await db.put(card)
-  return { ...card, _rev: res.rev }
+  const res = await db.put(withAttachments(card, await attachmentsFor(undefined, [front, ...backs])))
+  return getCard(res.id)
+}
+
+// Replaces a card's text (the `---`-separated editor format) and syncs its
+// images to match.
+export async function editCard(card: FlashCard, raw: string): Promise<FlashCard> {
+  const { front, backs } = parseCardContent(raw)
+  const atts = await attachmentsFor(card._attachments, [front, ...backs])
+  const saved = await updateCard(withAttachments({
+    ...card,
+    front: { content: front },
+    backs: backs.map(content => ({ content })),
+  }, atts))
+  // re-read so the returned card holds attachment stubs, not the blobs just written
+  return getCard(saved._id)
 }
 
 export async function getCardsForDeck(deckId: string): Promise<FlashCard[]> {
@@ -252,9 +299,17 @@ export const EXPORT_VERSION = 1
 export const COLLECTION_FORMAT = 'cardflashs-collection'
 export const COLLECTION_VERSION = 1
 
+// Card images travel inside the file as base64, the same shape CouchDB uses
+// for inline attachments.
+export interface ExportedAttachment {
+  content_type: string
+  data: string
+}
+
 export interface ExportedCard {
   front: CardSide
   backs: CardSide[]
+  attachments?: Record<string, ExportedAttachment>
   // Null when the file carried no usable scheduling state; importCards turns
   // that into a fresh card and reports how many it had to reset.
   fsrs: FSRSCard | null
@@ -294,24 +349,50 @@ export interface ImportResult {
   progressReset: number
 }
 
-function toExportedCard(c: FlashCard): ExportedCard {
+function toExportedCard(c: FlashCard, attachments?: Record<string, ExportedAttachment>): ExportedCard {
   return {
     front: c.front,
     backs: c.backs,
+    ...(attachments ? { attachments } : {}),
     fsrs: c.fsrs,
     createdAt: c.createdAt,
     updatedAt: c.updatedAt,
   }
 }
 
+// find() only returns attachment stubs, so the image data for the cards that
+// have any is fetched in one extra allDocs call.
+async function toExportedCards(cards: FlashCard[]): Promise<Map<string, ExportedCard>> {
+  const withImages = cards.filter(c => c._attachments && Object.keys(c._attachments).length)
+  const data = new Map<string, Record<string, ExportedAttachment>>()
+  if (withImages.length) {
+    const res = await getLocalDB().allDocs({
+      keys: withImages.map(c => c._id),
+      include_docs: true,
+      attachments: true,
+    })
+    for (const row of res.rows) {
+      const doc = 'doc' in row ? (row.doc as unknown as FlashCard | undefined) : undefined
+      if (!doc?._attachments) continue
+      const atts: Record<string, ExportedAttachment> = {}
+      for (const [name, a] of Object.entries(doc._attachments)) {
+        if ('data' in a && typeof a.data === 'string') atts[name] = { content_type: a.content_type, data: a.data }
+      }
+      data.set(doc._id, atts)
+    }
+  }
+  return new Map(cards.map(c => [c._id, toExportedCard(c, data.get(c._id))]))
+}
+
 export async function exportDeck(deckId: string): Promise<DeckExport> {
   const [deck, cards] = await Promise.all([getDeck(deckId), getCardsForDeck(deckId)])
+  const exported = await toExportedCards(cards)
   return {
     format: EXPORT_FORMAT,
     version: EXPORT_VERSION,
     exportedAt: new Date().toISOString(),
     deck: { name: deck.name, description: deck.description },
-    cards: cards.map(toExportedCard),
+    cards: cards.map(c => exported.get(c._id)!),
   }
 }
 
@@ -325,11 +406,14 @@ export async function exportAllDecks(): Promise<CollectionExport> {
     db.find({ selector: { type: 'card' }, limit: 0xffffffff }),
   ])
 
+  const docs = res.docs as unknown as FlashCard[]
+  const exported = await toExportedCards(docs)
   const byDeck = new Map<string, ExportedCard[]>()
-  for (const doc of res.docs as unknown as FlashCard[]) {
+  for (const doc of docs) {
+    const card = exported.get(doc._id)!
     const list = byDeck.get(doc.deckId)
-    if (list) list.push(toExportedCard(doc))
-    else byDeck.set(doc.deckId, [toExportedCard(doc)])
+    if (list) list.push(card)
+    else byDeck.set(doc.deckId, [card])
   }
 
   return {
@@ -364,6 +448,20 @@ function num(v: unknown, fallback: number): number {
 function toCardSide(v: unknown): CardSide | null {
   if (!isRecord(v) || typeof v.content !== 'string') return null
   return { content: v.content }
+}
+
+// Keeps only well-formed image entries; anything else is dropped and the card
+// just shows a missing image.
+function toAttachments(v: unknown): Record<string, ExportedAttachment> | undefined {
+  if (!isRecord(v)) return undefined
+  const out: Record<string, ExportedAttachment> = {}
+  for (const [name, a] of Object.entries(v)) {
+    if (!isAttachmentName(name) || !isRecord(a)) continue
+    if (typeof a.content_type !== 'string' || !a.content_type.startsWith('image/')) continue
+    if (typeof a.data !== 'string') continue
+    out[name] = { content_type: a.content_type, data: a.data }
+  }
+  return Object.keys(out).length ? out : undefined
 }
 
 // Returns null when the scheduling state is unusable, which the caller turns
@@ -408,9 +506,11 @@ function parseExportedCards(raw: unknown): ExportedCard[] {
       ? entry.backs.map(toCardSide).filter((b): b is CardSide => b !== null)
       : []
     const now = new Date().toISOString()
+    const attachments = toAttachments(entry.attachments)
     cards.push({
       front,
       backs,
+      ...(attachments ? { attachments } : {}),
       fsrs: toFSRSCard(entry.fsrs),
       createdAt: typeof entry.createdAt === 'string' ? entry.createdAt : now,
       updatedAt: typeof entry.updatedAt === 'string' ? entry.updatedAt : now,
@@ -474,6 +574,7 @@ async function insertCards(deckId: string, cards: ExportedCard[]): Promise<Impor
       deckId,
       front: c.front,
       backs: c.backs,
+      ...(c.attachments ? { _attachments: c.attachments } : {}),
       fsrs,
       createdAt: c.createdAt,
       updatedAt: c.updatedAt,

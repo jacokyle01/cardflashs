@@ -1,13 +1,18 @@
-import { useEffect, useId, useState } from 'react'
+import { useEffect, useId, useMemo, useState } from 'react'
 import Markdown, { defaultUrlTransform, type Components } from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+import { ATT_PREFIX, getImageURL, isAttachmentName, peekImageURL } from '../lib/attachments'
+import { loadCardImage } from '../lib/db'
 
 // Renders one side of a card. Card text is Markdown (GFM), so images are
-// `![alt](url)`; a fenced ```mermaid block is drawn as a diagram. Raw HTML is
+// `![alt](url)`, or `![alt](att:<name>)` for an image stored on the card
+// itself (see lib/attachments.ts); a fenced ```mermaid block is drawn as a diagram. Raw HTML is
 // not rendered (react-markdown's default), so card content can't inject markup.
 
 interface Props {
   content: string
+  // the card whose attachments `att:` images are loaded from
+  cardId?: string
   // tighter layout for the deck list: small images, diagrams capped in height
   compact?: boolean
   className?: string
@@ -16,6 +21,7 @@ interface Props {
 // react-markdown strips data: URLs by default; allow inline images so a card
 // can carry its picture without a separate host.
 function urlTransform(url: string): string {
+  if (url.startsWith(ATT_PREFIX) && isAttachmentName(url.slice(ATT_PREFIX.length))) return url
   if (/^data:image\/(png|jpe?g|gif|webp|svg\+xml);/i.test(url)) return url
   return defaultUrlTransform(url)
 }
@@ -40,14 +46,50 @@ const components: Components = {
   },
 }
 
-export default function CardContent({ content, compact, className = '' }: Props) {
+export default function CardContent({ content, cardId, compact, className = '' }: Props) {
+  const withImages = useMemo<Components>(() => ({
+    ...components,
+    img({ src, alt, title }) {
+      if (typeof src === 'string' && src.startsWith(ATT_PREFIX)) {
+        return <AttachmentImage name={src.slice(ATT_PREFIX.length)} cardId={cardId} alt={alt} title={title} />
+      }
+      return <img src={src} alt={alt} title={title} />
+    },
+  }), [cardId])
+
   return (
     <div className={`card-md ${compact ? 'card-md-compact' : ''} ${className}`}>
-      <Markdown remarkPlugins={[remarkGfm]} components={components} urlTransform={urlTransform}>
+      <Markdown remarkPlugins={[remarkGfm]} components={withImages} urlTransform={urlTransform}>
         {content}
       </Markdown>
     </div>
   )
+}
+
+// --- card images ---
+
+export function AttachmentImage({ name, cardId, alt, title }: {
+  name: string
+  cardId?: string
+  alt?: string
+  title?: string
+}) {
+  const [loaded, setLoaded] = useState<{ name: string; url: string | null } | null>(null)
+  const peeked = peekImageURL(name)
+
+  useEffect(() => {
+    if (peeked) return
+    let cancelled = false
+    void getImageURL(name, cardId ? () => loadCardImage(cardId, name) : undefined)
+      .then(url => { if (!cancelled) setLoaded({ name, url }) })
+    return () => { cancelled = true }
+  }, [name, cardId, peeked])
+
+  // undefined while loading, null when the image can't be found
+  const url = peeked ?? (loaded?.name === name ? loaded.url : undefined)
+  if (url === undefined) return <span className="card-img-placeholder" />
+  if (url === null) return <span className="text-xs text-gray-400">[missing image]</span>
+  return <img src={url} alt={alt} title={title} />
 }
 
 // --- mermaid ---

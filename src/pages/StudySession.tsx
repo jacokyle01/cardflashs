@@ -1,13 +1,14 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import { ArrowLeft, RotateCcw, Eye, SkipForward, Trash2, Pencil, Check, X } from 'lucide-react'
-import { getDeck, getNextTrainable, resetCard, deleteCard, updateCard, parseCardContent } from '../lib/db'
+import { getDeck, getNextTrainable, resetCard, deleteCard, editCard } from '../lib/db'
 import { reviewAndSave } from '../lib/scheduler'
 import { Rating, type Grade } from 'ts-fsrs'
 import type { Deck, FlashCard } from '../lib/types'
 import { useAuth } from '../lib/useAuth'
 import ThemeToggle from '../components/ThemeToggle'
 import CardContent from '../components/CardContent'
+import CardEditor from '../components/CardEditor'
 
 const GRADE_BUTTONS = [
   { grade: Rating.Again, label: 'Again', color: 'bg-red-500 hover:bg-red-600' },
@@ -91,12 +92,7 @@ export default function StudySession() {
 
   const handleEditSave = useCallback(async () => {
     if (!card) return
-    const { front, backs } = parseCardContent(editContent)
-    const updated = await updateCard({
-      ...card,
-      front: { content: front },
-      backs: backs.map(content => ({ content })),
-    })
+    const updated = await editCard(card, editContent)
     // Keep studying the same card with its new content, rather than advancing.
     setCard(updated)
     setEditing(false)
@@ -215,10 +211,11 @@ export default function StudySession() {
               <p className="text-sm text-gray-500 mb-3">
                 Use <code className="bg-gray-100 px-1.5 py-0.5 rounded text-xs">---</code> on its own line to separate front from back sides.
               </p>
-              <textarea
+              <CardEditor
                 autoFocus
+                cardId={card._id}
                 value={editContent}
-                onChange={(e) => setEditContent(e.target.value)}
+                onChange={setEditContent}
                 onKeyDown={(e) => {
                   if (e.key === 'Escape') setEditing(false)
                   if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) handleEditSave()
@@ -248,7 +245,7 @@ export default function StudySession() {
           {/* Front */}
           <div className="p-8 text-center">
             <p className="text-sm text-gray-400 uppercase tracking-wide mb-3">Front</p>
-            <CardContent content={card.front.content} className="text-2xl text-gray-800 font-medium" />
+            <CardContent content={card.front.content} cardId={card._id} className="text-2xl text-gray-800 font-medium" />
           </div>
 
           {/* Reveal / Back */}
@@ -272,7 +269,7 @@ export default function StudySession() {
                       key={i}
                       className="bg-gray-50 border border-gray-200 rounded-lg px-4 py-2 text-lg text-gray-700 max-w-full"
                     >
-                      <CardContent content={back.content} />
+                      <CardContent content={back.content} cardId={card._id} />
                     </div>
                   ))}
                 </div>

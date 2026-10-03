@@ -22,6 +22,9 @@ export interface FlashCard {
   front: CardSide
   backs: CardSide[]
   fsrs: FSRSCard
+  // card images (see lib/attachments.ts): stubs when read back, data when
+  // just written
+  _attachments?: PouchDB.Core.Attachments
   createdAt: string
   updatedAt: string
 }
